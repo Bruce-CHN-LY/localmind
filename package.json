@@ -1,0 +1,46 @@
+{
+  "name": "localmind",
+  "version": "1.0.0",
+  "productName": "LocalMind",
+  "description": "A local-first desktop knowledge assistant powered by Ollama and OpenAI-compatible APIs.",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:main\"",
+    "dev:renderer": "vite --host 127.0.0.1",
+    "dev:main": "wait-on http://127.0.0.1:5173 && tsc -p tsconfig.main.json && electron .",
+    "build": "tsc -p tsconfig.main.json && vite build",
+    "start": "NODE_ENV=production npm run build && electron .",
+    "typecheck": "tsc --noEmit -p tsconfig.renderer.json && tsc --noEmit -p tsconfig.main.json"
+  },
+  "keywords": [],
+  "author": "LocalMind contributors",
+  "license": "MIT",
+  "keywords": [
+    "local-first",
+    "knowledge-base",
+    "ollama",
+    "rag",
+    "electron",
+    "openai-compatible"
+  ],
+  "type": "commonjs",
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^10.0.3",
+    "electron": "^42.3.3",
+    "lucide-react": "^1.17.0",
+    "mammoth": "^1.12.0",
+    "pdf-parse": "^1.1.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "wait-on": "^9.0.10"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3"
+  }
+}
