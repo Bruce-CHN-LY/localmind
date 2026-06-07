@@ -638,6 +638,7 @@ function App() {
                       <span>
                         {formatFileSize(file.size)} · {getFileStatusText(file.status)}
                         {file.textLength ? ` · ${file.textLength.toLocaleString()} 字符` : ''}
+                        {file.chunkCount ? ` · ${file.chunkCount.toLocaleString()} 个片段` : ''}
                       </span>
                       {file.error ? <em>{file.error}</em> : null}
                     </div>

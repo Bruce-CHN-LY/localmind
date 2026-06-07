@@ -48,10 +48,23 @@ export type KnowledgeFile = {
   size: number;
   status: 'stored' | 'parsing' | 'parsed' | 'failed';
   parsedPath?: string;
+  chunksPath?: string;
   parsedAt?: string;
   textLength?: number;
+  chunkCount?: number;
   error?: string;
   createdAt: string;
+};
+
+export type KnowledgeChunk = {
+  id: string;
+  knowledgeBaseId: string;
+  fileId: string;
+  fileName: string;
+  chunkIndex: number;
+  content: string;
+  startOffset: number;
+  endOffset: number;
 };
 
 export type KnowledgeBase = {

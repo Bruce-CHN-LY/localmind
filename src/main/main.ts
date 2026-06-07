@@ -7,6 +7,7 @@ import pdfParse from 'pdf-parse';
 import type {
   ChatRequest,
   KnowledgeBase,
+  KnowledgeChunk,
   KnowledgeFile,
   ModelProvider,
   ModelSettings,
@@ -189,6 +190,10 @@ function getParsedTextPath(folderPath: string, fileId: string) {
   return path.join(folderPath, 'texts', `${fileId}.txt`);
 }
 
+function getChunksPath(folderPath: string, fileId: string) {
+  return path.join(folderPath, 'chunks', `${fileId}.json`);
+}
+
 function normalizeText(text: string) {
   return text
     .replace(/\r\n/g, '\n')
@@ -196,6 +201,76 @@ function normalizeText(text: string) {
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{4,}/g, '\n\n\n')
     .trim();
+}
+
+function splitTextIntoChunks(text: string, options = { maxLength: 1200, overlap: 180 }) {
+  const chunks: Array<{ content: string; startOffset: number; endOffset: number }> = [];
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  let cursor = 0;
+  let pending = '';
+  let pendingStart = 0;
+
+  function pushPending(endOffset: number) {
+    const content = pending.trim();
+
+    if (!content) return;
+
+    chunks.push({
+      content,
+      startOffset: pendingStart,
+      endOffset,
+    });
+
+    const overlap = content.slice(Math.max(0, content.length - options.overlap));
+    pending = overlap;
+    pendingStart = Math.max(pendingStart, endOffset - overlap.length);
+  }
+
+  for (const paragraph of paragraphs) {
+    const paragraphStart = text.indexOf(paragraph, cursor);
+    const startOffset = paragraphStart >= 0 ? paragraphStart : cursor;
+    const endOffset = startOffset + paragraph.length;
+    cursor = endOffset;
+
+    if (!pending) {
+      pending = paragraph;
+      pendingStart = startOffset;
+      continue;
+    }
+
+    if (`${pending}\n\n${paragraph}`.length > options.maxLength) {
+      pushPending(startOffset);
+      pending = pending ? `${pending}\n\n${paragraph}` : paragraph;
+    } else {
+      pending = `${pending}\n\n${paragraph}`;
+    }
+  }
+
+  if (pending.trim()) {
+    chunks.push({
+      content: pending.trim(),
+      startOffset: pendingStart,
+      endOffset: text.length,
+    });
+  }
+
+  return chunks;
+}
+
+function createKnowledgeChunks(knowledgeBase: KnowledgeBase, file: KnowledgeFile, text: string): KnowledgeChunk[] {
+  return splitTextIntoChunks(text).map((chunk, index) => ({
+    id: `${file.id}:${index}`,
+    knowledgeBaseId: knowledgeBase.id,
+    fileId: file.id,
+    fileName: file.name,
+    chunkIndex: index,
+    content: chunk.content,
+    startOffset: chunk.startOffset,
+    endOffset: chunk.endOffset,
+  }));
 }
 
 async function parseDocument(filePath: string): Promise<string> {
@@ -225,15 +300,21 @@ async function parseKnowledgeFile(knowledgeBase: KnowledgeBase, file: KnowledgeF
 
   try {
     await fs.mkdir(path.join(knowledgeBase.folderPath, 'texts'), { recursive: true });
+    await fs.mkdir(path.join(knowledgeBase.folderPath, 'chunks'), { recursive: true });
     const text = await parseDocument(file.storedPath);
     const parsedPath = getParsedTextPath(knowledgeBase.folderPath, file.id);
+    const chunksPath = getChunksPath(knowledgeBase.folderPath, file.id);
+    const chunks = createKnowledgeChunks(knowledgeBase, file, text);
 
     await fs.writeFile(parsedPath, text, 'utf8');
+    await fs.writeFile(chunksPath, JSON.stringify(chunks, null, 2), 'utf8');
 
     file.status = 'parsed';
     file.parsedPath = parsedPath;
+    file.chunksPath = chunksPath;
     file.parsedAt = new Date().toISOString();
     file.textLength = text.length;
+    file.chunkCount = chunks.length;
   } catch (error) {
     file.status = 'failed';
     file.error = error instanceof Error ? error.message : '解析失败';
@@ -419,6 +500,7 @@ ipcMain.handle('kb:create', async (_event, name: string): Promise<KnowledgeBase>
 
   await fs.mkdir(path.join(folderPath, 'files'), { recursive: true });
   await fs.mkdir(path.join(folderPath, 'texts'), { recursive: true });
+  await fs.mkdir(path.join(folderPath, 'chunks'), { recursive: true });
 
   const knowledgeBase: KnowledgeBase = {
     id,
@@ -460,6 +542,7 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
 
   await fs.mkdir(path.join(knowledgeBase.folderPath, 'files'), { recursive: true });
   await fs.mkdir(path.join(knowledgeBase.folderPath, 'texts'), { recursive: true });
+  await fs.mkdir(path.join(knowledgeBase.folderPath, 'chunks'), { recursive: true });
 
   for (const originalPath of result.filePaths) {
     const stats = await fs.stat(originalPath);

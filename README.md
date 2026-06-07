@@ -39,10 +39,10 @@ This is an early-stage desktop app. The current version already includes:
 - Knowledge base creation
 - Local file import
 - PDF, DOCX, Markdown, and TXT text extraction
+- Local text chunk generation
 
 The next milestone is retrieval:
 
-- Text chunking
 - Embedding generation
 - Local vector search
 - Citation-backed knowledge-base Q&A
@@ -139,7 +139,6 @@ Do not commit this data.
 
 ## Roadmap
 
-- Add text chunking
 - Add embedding generation
 - Add local vector database
 - Add citation-backed Q&A
