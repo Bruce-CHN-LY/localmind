@@ -79,6 +79,17 @@ export type SearchResult = KnowledgeChunk & {
   score: number;
 };
 
+export type KnowledgeAnswerRequest = ChatRequest & {
+  knowledgeBaseId: string;
+  question: string;
+  embeddingModel: string;
+};
+
+export type KnowledgeAnswer = {
+  answer: string;
+  citations: SearchResult[];
+};
+
 export type KnowledgeBase = {
   id: string;
   name: string;
@@ -99,6 +110,7 @@ export type LocalMindApi = {
   importKnowledgeFiles: (knowledgeBaseId: string) => Promise<KnowledgeBase>;
   generateKnowledgeBaseEmbeddings: (knowledgeBaseId: string, model: string) => Promise<KnowledgeBase>;
   searchKnowledgeBase: (knowledgeBaseId: string, query: string, model: string) => Promise<SearchResult[]>;
+  askKnowledgeBase: (request: KnowledgeAnswerRequest) => Promise<KnowledgeAnswer>;
 };
 
 declare global {

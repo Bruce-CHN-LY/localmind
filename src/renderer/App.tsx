@@ -21,6 +21,7 @@ import './styles.css';
 
 type UiMessage = ChatMessage & {
   id: string;
+  citations?: SearchResult[];
 };
 
 function formatModelSize(size?: number) {
@@ -104,6 +105,7 @@ function App() {
     () => knowledgeBases.find((item) => item.id === selectedKnowledgeBaseId) ?? null,
     [knowledgeBases, selectedKnowledgeBaseId],
   );
+  const selectedKnowledgeBaseHasIndex = Boolean(selectedKnowledgeBase?.files.some((file) => file.vectorCount));
 
   async function refreshKnowledgeBases() {
     const nextKnowledgeBases = await window.localMind.listKnowledgeBases();
@@ -324,29 +326,47 @@ function App() {
     setNotice('');
 
     try {
-      const answer = await window.localMind.sendChat({
-        requestId,
-        provider: modelProvider,
-        model: selectedModel,
-        messages: [...messages, userMessage].map(({ role, content }) => ({ role, content })),
-        networkConfig:
-          modelProvider === 'network' && selectedNetworkModel
-            ? {
-                id: selectedNetworkModel.id,
-                name: selectedNetworkModel.name,
-                baseUrl: selectedNetworkModel.baseUrl,
-                apiKey: selectedNetworkModel.apiKey,
-                model: selectedNetworkModel.model,
-              }
-            : undefined,
-      });
+      const networkConfig =
+        modelProvider === 'network' && selectedNetworkModel
+          ? {
+              id: selectedNetworkModel.id,
+              name: selectedNetworkModel.name,
+              baseUrl: selectedNetworkModel.baseUrl,
+              apiKey: selectedNetworkModel.apiKey,
+              model: selectedNetworkModel.model,
+            }
+          : undefined;
+      const model = modelProvider === 'network' && selectedNetworkModel ? selectedNetworkModel.model : selectedModel;
+      const response =
+        selectedKnowledgeBase && selectedKnowledgeBaseHasIndex && selectedEmbeddingModel
+          ? await window.localMind.askKnowledgeBase({
+              requestId,
+              provider: modelProvider,
+              model,
+              messages: [],
+              networkConfig,
+              knowledgeBaseId: selectedKnowledgeBase.id,
+              question: content,
+              embeddingModel: selectedEmbeddingModel,
+            })
+          : {
+              answer: await window.localMind.sendChat({
+                requestId,
+                provider: modelProvider,
+                model,
+                messages: [...messages, userMessage].map(({ role, content }) => ({ role, content })),
+                networkConfig,
+              }),
+              citations: [],
+            };
 
       setMessages((current) => [
         ...current,
         {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: answer || '模型没有返回内容。',
+          content: response.answer || '模型没有返回内容。',
+          citations: response.citations,
         },
       ]);
     } catch (error) {
@@ -620,7 +640,7 @@ function App() {
             <h2>本地模型聊天</h2>
             <p>
               {selectedKnowledgeBase
-                ? `当前知识库：${selectedKnowledgeBase.name}`
+                ? `当前知识库：${selectedKnowledgeBase.name}${selectedKnowledgeBaseHasIndex ? ' · 已启用知识库问答' : ' · 先生成索引后启用问答'}`
                 : '先创建一个知识库，再导入资料。'}
             </p>
           </div>
@@ -639,6 +659,19 @@ function App() {
             <article className={`message ${message.role}`} key={message.id}>
               <span>{message.role === 'user' ? '你' : 'LocalMind'}</span>
               <p>{message.content}</p>
+              {message.citations?.length ? (
+                <div className="message-citations">
+                  {message.citations.map((citation, index) => (
+                    <details key={citation.id}>
+                      <summary>
+                        [{index + 1}] {citation.fileName} · 片段 {citation.chunkIndex + 1} ·{' '}
+                        {(citation.score * 100).toFixed(1)}%
+                      </summary>
+                      <p>{citation.content}</p>
+                    </details>
+                  ))}
+                </div>
+              ) : null}
             </article>
           ))}
         </div>

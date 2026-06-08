@@ -6,6 +6,8 @@ import mammoth from 'mammoth';
 import pdfParse from 'pdf-parse';
 import type {
   ChatRequest,
+  KnowledgeAnswer,
+  KnowledgeAnswerRequest,
   KnowledgeBase,
   KnowledgeChunk,
   KnowledgeEmbedding,
@@ -481,6 +483,60 @@ async function sendNetworkChat(request: ChatRequest, signal: AbortSignal) {
   return data.choices?.[0]?.message?.content?.trim() ?? '';
 }
 
+async function sendChatRequest(request: ChatRequest, signal: AbortSignal) {
+  if (request.provider === 'network') {
+    return await sendNetworkChat(request, signal);
+  }
+
+  return await sendOllamaChat(request, signal);
+}
+
+async function searchKnowledgeBaseChunks(knowledgeBase: KnowledgeBase, query: string, model: string) {
+  if (!query.trim()) {
+    return [];
+  }
+
+  const indexedFiles = knowledgeBase.files.filter((file) => file.embeddingsPath);
+
+  if (indexedFiles.length === 0) {
+    throw new Error('请先为这个知识库生成索引');
+  }
+
+  const queryEmbedding = await createEmbedding(model.trim(), query.trim());
+  const results: SearchResult[] = [];
+
+  for (const file of indexedFiles) {
+    const embeddings = await readJsonFile<KnowledgeEmbedding[]>(file.embeddingsPath!);
+
+    for (const item of embeddings) {
+      results.push({
+        id: item.id,
+        knowledgeBaseId: item.knowledgeBaseId,
+        fileId: item.fileId,
+        fileName: item.fileName,
+        chunkIndex: item.chunkIndex,
+        content: item.content,
+        startOffset: item.startOffset,
+        endOffset: item.endOffset,
+        score: cosineSimilarity(queryEmbedding, item.embedding),
+      });
+    }
+  }
+
+  return results.sort((a, b) => b.score - a.score).slice(0, 8);
+}
+
+function buildKnowledgePrompt(question: string, citations: SearchResult[]) {
+  const context = citations
+    .map(
+      (citation, index) =>
+        `[${index + 1}] ${citation.fileName} · 片段 ${citation.chunkIndex + 1} · 匹配度 ${(citation.score * 100).toFixed(1)}%\n${citation.content}`,
+    )
+    .join('\n\n---\n\n');
+
+  return `你是 LocalMind 的知识库问答助手。请只根据下面提供的知识库片段回答用户问题。\n\n要求：\n- 如果片段中没有足够信息，请明确说“知识库中没有找到足够信息”。\n- 回答要清晰、具体、尽量使用中文。\n- 引用信息时，在句子后标注来源编号，例如 [1]、[2]。\n\n用户问题：\n${question}\n\n知识库片段：\n${context}`;
+}
+
 ipcMain.handle('ollama:status', async (): Promise<OllamaStatus> => {
   try {
     await fetchJson(`${OLLAMA_BASE_URL}/api/version`);
@@ -511,11 +567,7 @@ ipcMain.handle('ollama:chat', async (_event, request: ChatRequest): Promise<stri
   activeChatRequests.set(request.requestId, controller);
 
   try {
-    if (request.provider === 'network') {
-      return await sendNetworkChat(request, controller.signal);
-    }
-
-    return await sendOllamaChat(request, controller.signal);
+    return await sendChatRequest(request, controller.signal);
   } catch (error) {
     if (controller.signal.aborted) {
       throw new Error('已停止生成');
@@ -686,38 +738,48 @@ ipcMain.handle('kb:search', async (_event, knowledgeBaseId: string, query: strin
     throw new Error('找不到这个知识库');
   }
 
-  if (!query.trim()) {
-    return [];
-  }
+  return searchKnowledgeBaseChunks(knowledgeBase, query, model);
+});
 
-  const indexedFiles = knowledgeBase.files.filter((file) => file.embeddingsPath);
+ipcMain.handle('kb:ask', async (_event, request: KnowledgeAnswerRequest): Promise<KnowledgeAnswer> => {
+  const controller = new AbortController();
+  activeChatRequests.set(request.requestId, controller);
 
-  if (indexedFiles.length === 0) {
-    throw new Error('请先为这个知识库生成索引');
-  }
+  try {
+    const store = await ensureStore();
+    const knowledgeBase = store.knowledgeBases.find((item) => item.id === request.knowledgeBaseId);
 
-  const queryEmbedding = await createEmbedding(model.trim(), query.trim());
-  const results: SearchResult[] = [];
-
-  for (const file of indexedFiles) {
-    const embeddings = await readJsonFile<KnowledgeEmbedding[]>(file.embeddingsPath!);
-
-    for (const item of embeddings) {
-      results.push({
-        id: item.id,
-        knowledgeBaseId: item.knowledgeBaseId,
-        fileId: item.fileId,
-        fileName: item.fileName,
-        chunkIndex: item.chunkIndex,
-        content: item.content,
-        startOffset: item.startOffset,
-        endOffset: item.endOffset,
-        score: cosineSimilarity(queryEmbedding, item.embedding),
-      });
+    if (!knowledgeBase) {
+      throw new Error('找不到这个知识库');
     }
-  }
 
-  return results.sort((a, b) => b.score - a.score).slice(0, 8);
+    const citations = await searchKnowledgeBaseChunks(knowledgeBase, request.question, request.embeddingModel);
+    const answer = await sendChatRequest(
+      {
+        ...request,
+        messages: [
+          {
+            role: 'user',
+            content: buildKnowledgePrompt(request.question, citations),
+          },
+        ],
+      },
+      controller.signal,
+    );
+
+    return {
+      answer,
+      citations,
+    };
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('已停止生成');
+    }
+
+    throw error;
+  } finally {
+    activeChatRequests.delete(request.requestId);
+  }
 });
 
 app.whenReady().then(() => {

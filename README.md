@@ -44,10 +44,14 @@ This is an early-stage desktop app. The current version already includes:
 - Local text chunk generation
 - Ollama embedding generation
 - Local vector similarity search
-
-The next milestone is retrieval:
-
 - Citation-backed knowledge-base Q&A
+
+The next milestone is workflow polish:
+
+- Re-indexing controls
+- File deletion
+- Import/export
+- Packaging
 
 ## Screens
 
@@ -141,7 +145,8 @@ Do not commit this data.
 
 ## Roadmap
 
-- Add citation-backed Q&A
+- Add re-indexing controls
+- Add file deletion
 - Add import/export for knowledge bases
 - Add more model providers
 - Add app packaging for macOS and Windows

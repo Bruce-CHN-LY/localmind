@@ -449,6 +449,39 @@ select {
   border-radius: 8px;
 }
 
+.message-citations {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.message-citations details {
+  background: #fffaf4;
+  border: 1px solid #e0d4c4;
+  border-radius: 8px;
+}
+
+.message-citations summary {
+  cursor: pointer;
+  padding: 9px 11px;
+  color: #3d5a4b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.message-citations p {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  padding: 0 11px 11px;
+  color: #514a42;
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .message.user {
   align-self: flex-end;
 }
