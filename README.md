@@ -1,5 +1,7 @@
 # LocalMind
 
+[中文介绍](./README.zh-CN.md)
+
 LocalMind is a local-first desktop knowledge assistant for building a private AI knowledge base from your own documents.
 
 It supports local Ollama models and OpenAI-compatible network APIs, so users can choose between privacy-first local inference and lower-memory cloud inference.
@@ -40,11 +42,11 @@ This is an early-stage desktop app. The current version already includes:
 - Local file import
 - PDF, DOCX, Markdown, and TXT text extraction
 - Local text chunk generation
+- Ollama embedding generation
+- Local vector similarity search
 
 The next milestone is retrieval:
 
-- Embedding generation
-- Local vector search
 - Citation-backed knowledge-base Q&A
 
 ## Screens
@@ -139,8 +141,6 @@ Do not commit this data.
 
 ## Roadmap
 
-- Add embedding generation
-- Add local vector database
 - Add citation-backed Q&A
 - Add import/export for knowledge bases
 - Add more model providers

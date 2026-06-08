@@ -8,11 +8,13 @@ import type {
   ChatRequest,
   KnowledgeBase,
   KnowledgeChunk,
+  KnowledgeEmbedding,
   KnowledgeFile,
   ModelProvider,
   ModelSettings,
   NetworkModelConfig,
   OllamaModel,
+  SearchResult,
   OllamaStatus,
 } from '../preload/types';
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434';
@@ -194,6 +196,10 @@ function getChunksPath(folderPath: string, fileId: string) {
   return path.join(folderPath, 'chunks', `${fileId}.json`);
 }
 
+function getEmbeddingsPath(folderPath: string, fileId: string) {
+  return path.join(folderPath, 'embeddings', `${fileId}.json`);
+}
+
 function normalizeText(text: string) {
   return text
     .replace(/\r\n/g, '\n')
@@ -273,6 +279,69 @@ function createKnowledgeChunks(knowledgeBase: KnowledgeBase, file: KnowledgeFile
   }));
 }
 
+function cosineSimilarity(a: number[], b: number[]) {
+  let dot = 0;
+  let aMagnitude = 0;
+  let bMagnitude = 0;
+  const length = Math.min(a.length, b.length);
+
+  for (let index = 0; index < length; index += 1) {
+    dot += a[index] * b[index];
+    aMagnitude += a[index] * a[index];
+    bMagnitude += b[index] * b[index];
+  }
+
+  if (!aMagnitude || !bMagnitude) return 0;
+  return dot / (Math.sqrt(aMagnitude) * Math.sqrt(bMagnitude));
+}
+
+async function createEmbedding(model: string, text: string) {
+  const data = await fetchJson<{ embedding?: number[] }>(`${OLLAMA_BASE_URL}/api/embeddings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      prompt: text,
+    }),
+  });
+
+  if (!data.embedding?.length) {
+    throw new Error('Embedding 模型没有返回向量');
+  }
+
+  return data.embedding;
+}
+
+async function readJsonFile<T>(filePath: string): Promise<T> {
+  return JSON.parse(await fs.readFile(filePath, 'utf8')) as T;
+}
+
+async function generateFileEmbeddings(knowledgeBase: KnowledgeBase, file: KnowledgeFile, model: string) {
+  if (!file.chunksPath) {
+    throw new Error(`${file.name} 还没有文本片段`);
+  }
+
+  const chunks = await readJsonFile<KnowledgeChunk[]>(file.chunksPath);
+  const embeddings: KnowledgeEmbedding[] = [];
+
+  await fs.mkdir(path.join(knowledgeBase.folderPath, 'embeddings'), { recursive: true });
+
+  for (const chunk of chunks) {
+    embeddings.push({
+      ...chunk,
+      embedding: await createEmbedding(model, chunk.content),
+    });
+  }
+
+  const embeddingsPath = getEmbeddingsPath(knowledgeBase.folderPath, file.id);
+  await fs.writeFile(embeddingsPath, JSON.stringify(embeddings, null, 2), 'utf8');
+
+  file.embeddingsPath = embeddingsPath;
+  file.embeddedAt = new Date().toISOString();
+  file.embeddingModel = model;
+  file.vectorCount = embeddings.length;
+}
+
 async function parseDocument(filePath: string): Promise<string> {
   const extension = path.extname(filePath).toLowerCase();
 
@@ -301,6 +370,7 @@ async function parseKnowledgeFile(knowledgeBase: KnowledgeBase, file: KnowledgeF
   try {
     await fs.mkdir(path.join(knowledgeBase.folderPath, 'texts'), { recursive: true });
     await fs.mkdir(path.join(knowledgeBase.folderPath, 'chunks'), { recursive: true });
+    await fs.mkdir(path.join(knowledgeBase.folderPath, 'embeddings'), { recursive: true });
     const text = await parseDocument(file.storedPath);
     const parsedPath = getParsedTextPath(knowledgeBase.folderPath, file.id);
     const chunksPath = getChunksPath(knowledgeBase.folderPath, file.id);
@@ -501,6 +571,7 @@ ipcMain.handle('kb:create', async (_event, name: string): Promise<KnowledgeBase>
   await fs.mkdir(path.join(folderPath, 'files'), { recursive: true });
   await fs.mkdir(path.join(folderPath, 'texts'), { recursive: true });
   await fs.mkdir(path.join(folderPath, 'chunks'), { recursive: true });
+  await fs.mkdir(path.join(folderPath, 'embeddings'), { recursive: true });
 
   const knowledgeBase: KnowledgeBase = {
     id,
@@ -543,6 +614,7 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
   await fs.mkdir(path.join(knowledgeBase.folderPath, 'files'), { recursive: true });
   await fs.mkdir(path.join(knowledgeBase.folderPath, 'texts'), { recursive: true });
   await fs.mkdir(path.join(knowledgeBase.folderPath, 'chunks'), { recursive: true });
+  await fs.mkdir(path.join(knowledgeBase.folderPath, 'embeddings'), { recursive: true });
 
   for (const originalPath of result.filePaths) {
     const stats = await fs.stat(originalPath);
@@ -578,6 +650,74 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
 
   await saveStore(store);
   return knowledgeBase;
+});
+
+ipcMain.handle('kb:generate-embeddings', async (_event, knowledgeBaseId: string, model: string): Promise<KnowledgeBase> => {
+  const store = await ensureStore();
+  const knowledgeBase = store.knowledgeBases.find((item) => item.id === knowledgeBaseId);
+
+  if (!knowledgeBase) {
+    throw new Error('找不到这个知识库');
+  }
+
+  if (!model.trim()) {
+    throw new Error('请选择 embedding 模型');
+  }
+
+  const parsedFiles = knowledgeBase.files.filter((file) => file.status === 'parsed' && file.chunksPath);
+
+  if (parsedFiles.length === 0) {
+    throw new Error('这个知识库还没有可索引的已解析文件');
+  }
+
+  for (const file of parsedFiles) {
+    await generateFileEmbeddings(knowledgeBase, file, model.trim());
+  }
+
+  await saveStore(store);
+  return knowledgeBase;
+});
+
+ipcMain.handle('kb:search', async (_event, knowledgeBaseId: string, query: string, model: string): Promise<SearchResult[]> => {
+  const store = await ensureStore();
+  const knowledgeBase = store.knowledgeBases.find((item) => item.id === knowledgeBaseId);
+
+  if (!knowledgeBase) {
+    throw new Error('找不到这个知识库');
+  }
+
+  if (!query.trim()) {
+    return [];
+  }
+
+  const indexedFiles = knowledgeBase.files.filter((file) => file.embeddingsPath);
+
+  if (indexedFiles.length === 0) {
+    throw new Error('请先为这个知识库生成索引');
+  }
+
+  const queryEmbedding = await createEmbedding(model.trim(), query.trim());
+  const results: SearchResult[] = [];
+
+  for (const file of indexedFiles) {
+    const embeddings = await readJsonFile<KnowledgeEmbedding[]>(file.embeddingsPath!);
+
+    for (const item of embeddings) {
+      results.push({
+        id: item.id,
+        knowledgeBaseId: item.knowledgeBaseId,
+        fileId: item.fileId,
+        fileName: item.fileName,
+        chunkIndex: item.chunkIndex,
+        content: item.content,
+        startOffset: item.startOffset,
+        endOffset: item.endOffset,
+        score: cosineSimilarity(queryEmbedding, item.embedding),
+      });
+    }
+  }
+
+  return results.sort((a, b) => b.score - a.score).slice(0, 8);
 });
 
 app.whenReady().then(() => {

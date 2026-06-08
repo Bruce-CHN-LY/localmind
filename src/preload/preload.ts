@@ -11,6 +11,10 @@ const api: LocalMindApi = {
   listKnowledgeBases: () => ipcRenderer.invoke('kb:list'),
   createKnowledgeBase: (name: string) => ipcRenderer.invoke('kb:create', name),
   importKnowledgeFiles: (knowledgeBaseId: string) => ipcRenderer.invoke('kb:import-files', knowledgeBaseId),
+  generateKnowledgeBaseEmbeddings: (knowledgeBaseId: string, model: string) =>
+    ipcRenderer.invoke('kb:generate-embeddings', knowledgeBaseId, model),
+  searchKnowledgeBase: (knowledgeBaseId: string, query: string, model: string) =>
+    ipcRenderer.invoke('kb:search', knowledgeBaseId, query, model),
 };
 
 contextBridge.exposeInMainWorld('localMind', api);

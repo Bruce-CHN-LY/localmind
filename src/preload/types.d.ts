@@ -52,6 +52,10 @@ export type KnowledgeFile = {
   parsedAt?: string;
   textLength?: number;
   chunkCount?: number;
+  embeddingsPath?: string;
+  embeddedAt?: string;
+  embeddingModel?: string;
+  vectorCount?: number;
   error?: string;
   createdAt: string;
 };
@@ -65,6 +69,14 @@ export type KnowledgeChunk = {
   content: string;
   startOffset: number;
   endOffset: number;
+};
+
+export type KnowledgeEmbedding = KnowledgeChunk & {
+  embedding: number[];
+};
+
+export type SearchResult = KnowledgeChunk & {
+  score: number;
 };
 
 export type KnowledgeBase = {
@@ -85,6 +97,8 @@ export type LocalMindApi = {
   listKnowledgeBases: () => Promise<KnowledgeBase[]>;
   createKnowledgeBase: (name: string) => Promise<KnowledgeBase>;
   importKnowledgeFiles: (knowledgeBaseId: string) => Promise<KnowledgeBase>;
+  generateKnowledgeBaseEmbeddings: (knowledgeBaseId: string, model: string) => Promise<KnowledgeBase>;
+  searchKnowledgeBase: (knowledgeBaseId: string, query: string, model: string) => Promise<SearchResult[]>;
 };
 
 declare global {

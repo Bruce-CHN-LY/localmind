@@ -8,13 +8,14 @@ import {
   Import,
   Loader2,
   RefreshCw,
+  Search,
   Send,
   Settings,
   Square,
   WifiOff,
 } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
-import type { ChatMessage, KnowledgeBase, ModelProvider, OllamaModel, OllamaStatus } from '../preload/types';
+import type { ChatMessage, KnowledgeBase, ModelProvider, OllamaModel, OllamaStatus, SearchResult } from '../preload/types';
 import type { NetworkModelConfig } from '../preload/types';
 import './styles.css';
 
@@ -52,6 +53,7 @@ function App() {
   const [modelProvider, setModelProvider] = useState<ModelProvider>('ollama');
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [selectedModel, setSelectedModel] = useState('');
+  const [selectedEmbeddingModel, setSelectedEmbeddingModel] = useState('');
   const [networkModels, setNetworkModels] = useState<NetworkModelConfig[]>([]);
   const [selectedNetworkModelId, setSelectedNetworkModelId] = useState('');
   const [networkBaseUrl, setNetworkBaseUrl] = useState('https://api.deepseek.com');
@@ -74,9 +76,13 @@ function App() {
   const [activeChatRequestId, setActiveChatRequestId] = useState('');
   const [isCreatingKnowledgeBase, setIsCreatingKnowledgeBase] = useState(false);
   const [isImportingFiles, setIsImportingFiles] = useState(false);
+  const [isGeneratingIndex, setIsGeneratingIndex] = useState(false);
+  const [isSearchingKnowledgeBase, setIsSearchingKnowledgeBase] = useState(false);
   const [isSavingModelSettings, setIsSavingModelSettings] = useState(false);
   const [isNetworkSettingsOpen, setIsNetworkSettingsOpen] = useState(false);
   const [editingNetworkModelId, setEditingNetworkModelId] = useState('');
+  const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
+  const [knowledgeSearchResults, setKnowledgeSearchResults] = useState<SearchResult[]>([]);
   const [notice, setNotice] = useState('');
 
   const selectedNetworkModel = useMemo(
@@ -138,6 +144,10 @@ function App() {
       const nextModels = await window.localMind.listOllamaModels();
       setModels(nextModels);
       setSelectedModel((current) => current || nextModels[0]?.name || '');
+      setSelectedEmbeddingModel((current) => {
+        if (current) return current;
+        return nextModels.find((model) => model.name.includes('embed'))?.name || nextModels[0]?.name || '';
+      });
 
       if (nextModels.length === 0) {
         setNotice('Ollama 已连接，但还没有模型。可以先拉取 qwen2.5:7b 或 llama3.1:8b。');
@@ -247,6 +257,50 @@ function App() {
       setNotice(error instanceof Error ? error.message : '导入文件失败');
     } finally {
       setIsImportingFiles(false);
+    }
+  }
+
+  async function handleGenerateIndex() {
+    if (!selectedKnowledgeBaseId || !selectedEmbeddingModel || isGeneratingIndex) return;
+
+    setIsGeneratingIndex(true);
+    setNotice('');
+
+    try {
+      const updatedKnowledgeBase = await window.localMind.generateKnowledgeBaseEmbeddings(
+        selectedKnowledgeBaseId,
+        selectedEmbeddingModel,
+      );
+      setKnowledgeBases((current) =>
+        current.map((knowledgeBase) =>
+          knowledgeBase.id === updatedKnowledgeBase.id ? updatedKnowledgeBase : knowledgeBase,
+        ),
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '生成索引失败');
+    } finally {
+      setIsGeneratingIndex(false);
+    }
+  }
+
+  async function handleKnowledgeSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedKnowledgeBaseId || !selectedEmbeddingModel || !knowledgeSearchQuery.trim()) return;
+
+    setIsSearchingKnowledgeBase(true);
+    setNotice('');
+
+    try {
+      const results = await window.localMind.searchKnowledgeBase(
+        selectedKnowledgeBaseId,
+        knowledgeSearchQuery,
+        selectedEmbeddingModel,
+      );
+      setKnowledgeSearchResults(results);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '检索失败');
+    } finally {
+      setIsSearchingKnowledgeBase(false);
     }
   }
 
@@ -486,6 +540,23 @@ function App() {
             ) : (
               <p className="hint">推荐先安装 qwen2.5:7b。</p>
             )}
+
+            <div className="panel-title secondary-title">
+              <span>Embedding 模型</span>
+            </div>
+            <select
+              className="select"
+              value={selectedEmbeddingModel}
+              onChange={(event) => setSelectedEmbeddingModel(event.target.value)}
+              disabled={models.length === 0}
+            >
+              {models.length === 0 ? (
+                <option>暂无模型</option>
+              ) : (
+                models.map((model) => <option key={model.name}>{model.name}</option>)
+              )}
+            </select>
+            <p className="hint">推荐使用 nomic-embed-text。</p>
           </section>
         ) : (
           <section className="panel">
@@ -621,6 +692,15 @@ function App() {
               {isImportingFiles ? <Loader2 size={17} /> : <Import size={17} />}
               导入文件
             </button>
+            <button
+              className="import-button index-button"
+              disabled={isGeneratingIndex || !selectedEmbeddingModel}
+              onClick={handleGenerateIndex}
+              type="button"
+            >
+              {isGeneratingIndex ? <Loader2 size={17} /> : <Database size={17} />}
+              {isGeneratingIndex ? '生成中' : '生成索引'}
+            </button>
 
             <div className="file-list">
               {selectedKnowledgeBase.files.length === 0 ? (
@@ -639,6 +719,7 @@ function App() {
                         {formatFileSize(file.size)} · {getFileStatusText(file.status)}
                         {file.textLength ? ` · ${file.textLength.toLocaleString()} 字符` : ''}
                         {file.chunkCount ? ` · ${file.chunkCount.toLocaleString()} 个片段` : ''}
+                        {file.vectorCount ? ` · ${file.vectorCount.toLocaleString()} 个向量` : ''}
                       </span>
                       {file.error ? <em>{file.error}</em> : null}
                     </div>
@@ -646,6 +727,36 @@ function App() {
                 ))
               )}
             </div>
+
+            <form className="knowledge-search" onSubmit={handleKnowledgeSearch}>
+              <label>
+                测试检索
+                <textarea
+                  value={knowledgeSearchQuery}
+                  onChange={(event) => setKnowledgeSearchQuery(event.target.value)}
+                  placeholder="输入一个问题，看看知识库会命中哪些片段"
+                  rows={3}
+                />
+              </label>
+              <button disabled={isSearchingKnowledgeBase || !knowledgeSearchQuery.trim()} type="submit">
+                {isSearchingKnowledgeBase ? <Loader2 size={17} /> : <Search size={17} />}
+                {isSearchingKnowledgeBase ? '检索中' : '检索片段'}
+              </button>
+            </form>
+
+            {knowledgeSearchResults.length > 0 ? (
+              <div className="search-results">
+                {knowledgeSearchResults.map((result) => (
+                  <article className="search-result" key={result.id}>
+                    <strong>{result.fileName}</strong>
+                    <span>
+                      片段 {result.chunkIndex + 1} · 匹配度 {(result.score * 100).toFixed(1)}%
+                    </span>
+                    <p>{result.content}</p>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="source-empty">

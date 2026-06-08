@@ -115,6 +115,10 @@ select {
   font-weight: 700;
 }
 
+.secondary-title {
+  margin-top: 14px;
+}
+
 .icon-button {
   display: grid;
   width: 30px;
@@ -513,7 +517,14 @@ select {
   gap: 8px;
   width: 100%;
   height: 40px;
+  margin-bottom: 10px;
+}
+
+.index-button {
   margin-bottom: 14px;
+  color: #3d5a4b;
+  background: #eef8f2;
+  border: 1px solid #a9c9b8;
 }
 
 .import-button svg {
@@ -571,6 +582,91 @@ select {
   font-size: 12px;
   font-style: normal;
   line-height: 1.4;
+}
+
+.knowledge-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #d9cdbc;
+}
+
+.knowledge-search label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #514a42;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.knowledge-search textarea {
+  min-height: 74px;
+  resize: vertical;
+  padding: 10px;
+  color: #24211d;
+  background: #fffaf4;
+  border: 1px solid #dacdbc;
+  border-radius: 8px;
+  outline: none;
+}
+
+.knowledge-search button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  color: #fff;
+  background: #3d5a4b;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.knowledge-search button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.search-result {
+  padding: 11px;
+  background: #fffaf4;
+  border: 1px solid #ddd0bd;
+  border-radius: 8px;
+}
+
+.search-result strong {
+  display: block;
+  color: #3b352f;
+  font-size: 13px;
+}
+
+.search-result span {
+  display: block;
+  margin-top: 4px;
+  color: #776f65;
+  font-size: 12px;
+}
+
+.search-result p {
+  display: -webkit-box;
+  margin: 8px 0 0;
+  overflow: hidden;
+  color: #514a42;
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
 }
 
 @keyframes spin {
