@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Bot,
@@ -126,6 +126,7 @@ function getMatchTypeText(matchType?: SearchResult['matchType']) {
 }
 
 function App() {
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<OllamaStatus | null>(null);
   const [modelProvider, setModelProvider] = useState<ModelProvider>('ollama');
   const [models, setModels] = useState<OllamaModel[]>([]);
@@ -282,6 +283,10 @@ function App() {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, notice]);
 
   function handleDismissOnboarding() {
     localStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
@@ -1152,6 +1157,7 @@ function App() {
               ) : null}
             </article>
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
         <form className="composer" onSubmit={handleSubmit}>

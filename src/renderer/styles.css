@@ -575,7 +575,26 @@ select {
   gap: 14px;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   padding: 24px 28px;
+}
+
+.messages::-webkit-scrollbar {
+  width: 10px;
+}
+
+.messages::-webkit-scrollbar-track {
+  background: #efe6d9;
+}
+
+.messages::-webkit-scrollbar-thumb {
+  background: #cbbba8;
+  border: 2px solid #efe6d9;
+  border-radius: 999px;
+}
+
+.messages::-webkit-scrollbar-thumb:hover {
+  background: #a99681;
 }
 
 .message {
