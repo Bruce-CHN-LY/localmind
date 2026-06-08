@@ -560,6 +560,12 @@ select {
   border: 1px solid #a9c9b8;
 }
 
+.folder-button {
+  color: #3b352f;
+  background: #f9f4ec;
+  border: 1px solid #dacdbc;
+}
+
 .import-button svg {
   flex: 0 0 auto;
 }
@@ -615,6 +621,39 @@ select {
   font-size: 12px;
   font-style: normal;
   line-height: 1.4;
+}
+
+.file-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.file-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  height: 28px;
+  color: #3d5a4b;
+  background: #eef8f2;
+  border: 1px solid #a9c9b8;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.file-actions button.danger {
+  color: #8c493d;
+  background: #fff0ec;
+  border-color: #e2b9ad;
+}
+
+.file-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .knowledge-search {

@@ -109,6 +109,10 @@ export type LocalMindApi = {
   createKnowledgeBase: (name: string) => Promise<KnowledgeBase>;
   importKnowledgeFiles: (knowledgeBaseId: string) => Promise<KnowledgeBase>;
   generateKnowledgeBaseEmbeddings: (knowledgeBaseId: string, model: string) => Promise<KnowledgeBase>;
+  reparseKnowledgeFile: (knowledgeBaseId: string, fileId: string) => Promise<KnowledgeBase>;
+  reindexKnowledgeFile: (knowledgeBaseId: string, fileId: string, model: string) => Promise<KnowledgeBase>;
+  deleteKnowledgeFile: (knowledgeBaseId: string, fileId: string) => Promise<KnowledgeBase>;
+  openKnowledgeBaseFolder: (knowledgeBaseId: string) => Promise<boolean>;
   searchKnowledgeBase: (knowledgeBaseId: string, query: string, model: string) => Promise<SearchResult[]>;
   askKnowledgeBase: (request: KnowledgeAnswerRequest) => Promise<KnowledgeAnswer>;
 };

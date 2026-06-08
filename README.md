@@ -45,11 +45,11 @@ This is an early-stage desktop app. The current version already includes:
 - Ollama embedding generation
 - Local vector similarity search
 - Citation-backed knowledge-base Q&A
+- File deletion, re-parsing, and re-indexing
+- Opening the local knowledge-base folder
 
 The next milestone is workflow polish:
 
-- Re-indexing controls
-- File deletion
 - Import/export
 - Packaging
 
@@ -145,8 +145,6 @@ Do not commit this data.
 
 ## Roadmap
 
-- Add re-indexing controls
-- Add file deletion
 - Add import/export for knowledge bases
 - Add more model providers
 - Add app packaging for macOS and Windows

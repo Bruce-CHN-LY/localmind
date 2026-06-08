@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Database,
   FileText,
+  FolderOpen,
   FolderPlus,
   Import,
   Loader2,
@@ -12,6 +13,7 @@ import {
   Send,
   Settings,
   Square,
+  Trash2,
   WifiOff,
 } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
@@ -78,6 +80,7 @@ function App() {
   const [isCreatingKnowledgeBase, setIsCreatingKnowledgeBase] = useState(false);
   const [isImportingFiles, setIsImportingFiles] = useState(false);
   const [isGeneratingIndex, setIsGeneratingIndex] = useState(false);
+  const [busyFileId, setBusyFileId] = useState('');
   const [isSearchingKnowledgeBase, setIsSearchingKnowledgeBase] = useState(false);
   const [isSavingModelSettings, setIsSavingModelSettings] = useState(false);
   const [isNetworkSettingsOpen, setIsNetworkSettingsOpen] = useState(false);
@@ -282,6 +285,74 @@ function App() {
       setNotice(error instanceof Error ? error.message : '生成索引失败');
     } finally {
       setIsGeneratingIndex(false);
+    }
+  }
+
+  function replaceKnowledgeBase(updatedKnowledgeBase: KnowledgeBase) {
+    setKnowledgeBases((current) =>
+      current.map((knowledgeBase) =>
+        knowledgeBase.id === updatedKnowledgeBase.id ? updatedKnowledgeBase : knowledgeBase,
+      ),
+    );
+  }
+
+  async function handleOpenKnowledgeBaseFolder() {
+    if (!selectedKnowledgeBaseId) return;
+
+    try {
+      await window.localMind.openKnowledgeBaseFolder(selectedKnowledgeBaseId);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '打开文件夹失败');
+    }
+  }
+
+  async function handleReparseFile(fileId: string) {
+    if (!selectedKnowledgeBaseId || busyFileId) return;
+
+    setBusyFileId(fileId);
+    setNotice('');
+
+    try {
+      replaceKnowledgeBase(await window.localMind.reparseKnowledgeFile(selectedKnowledgeBaseId, fileId));
+      setKnowledgeSearchResults([]);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '重新解析失败');
+    } finally {
+      setBusyFileId('');
+    }
+  }
+
+  async function handleReindexFile(fileId: string) {
+    if (!selectedKnowledgeBaseId || !selectedEmbeddingModel || busyFileId) return;
+
+    setBusyFileId(fileId);
+    setNotice('');
+
+    try {
+      replaceKnowledgeBase(
+        await window.localMind.reindexKnowledgeFile(selectedKnowledgeBaseId, fileId, selectedEmbeddingModel),
+      );
+      setKnowledgeSearchResults([]);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '重新索引失败');
+    } finally {
+      setBusyFileId('');
+    }
+  }
+
+  async function handleDeleteFile(fileId: string) {
+    if (!selectedKnowledgeBaseId || busyFileId) return;
+
+    setBusyFileId(fileId);
+    setNotice('');
+
+    try {
+      replaceKnowledgeBase(await window.localMind.deleteKnowledgeFile(selectedKnowledgeBaseId, fileId));
+      setKnowledgeSearchResults([]);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '删除文件失败');
+    } finally {
+      setBusyFileId('');
     }
   }
 
@@ -725,6 +796,10 @@ function App() {
               {isImportingFiles ? <Loader2 size={17} /> : <Import size={17} />}
               导入文件
             </button>
+            <button className="import-button folder-button" onClick={handleOpenKnowledgeBaseFolder} type="button">
+              <FolderOpen size={17} />
+              打开文件夹
+            </button>
             <button
               className="import-button index-button"
               disabled={isGeneratingIndex || !selectedEmbeddingModel}
@@ -755,6 +830,29 @@ function App() {
                         {file.vectorCount ? ` · ${file.vectorCount.toLocaleString()} 个向量` : ''}
                       </span>
                       {file.error ? <em>{file.error}</em> : null}
+                      <div className="file-actions">
+                        <button disabled={busyFileId === file.id} onClick={() => handleReparseFile(file.id)} type="button">
+                          {busyFileId === file.id ? <Loader2 size={13} /> : <RefreshCw size={13} />}
+                          解析
+                        </button>
+                        <button
+                          disabled={busyFileId === file.id || file.status !== 'parsed' || !selectedEmbeddingModel}
+                          onClick={() => handleReindexFile(file.id)}
+                          type="button"
+                        >
+                          {busyFileId === file.id ? <Loader2 size={13} /> : <Database size={13} />}
+                          索引
+                        </button>
+                        <button
+                          className="danger"
+                          disabled={busyFileId === file.id}
+                          onClick={() => handleDeleteFile(file.id)}
+                          type="button"
+                        >
+                          <Trash2 size={13} />
+                          删除
+                        </button>
+                      </div>
                     </div>
                   </article>
                 ))

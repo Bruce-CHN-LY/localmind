@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, type OpenDialogOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell, type OpenDialogOptions } from 'electron';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -182,6 +182,26 @@ async function ensureStore(): Promise<LocalMindStore> {
 async function saveStore(store: LocalMindStore) {
   await fs.mkdir(APP_DATA_DIR, { recursive: true });
   await fs.writeFile(getStorePath(), JSON.stringify(store, null, 2), 'utf8');
+}
+
+function findKnowledgeBase(store: LocalMindStore, knowledgeBaseId: string) {
+  const knowledgeBase = store.knowledgeBases.find((item) => item.id === knowledgeBaseId);
+
+  if (!knowledgeBase) {
+    throw new Error('找不到这个知识库');
+  }
+
+  return knowledgeBase;
+}
+
+function findKnowledgeFile(knowledgeBase: KnowledgeBase, fileId: string) {
+  const file = knowledgeBase.files.find((item) => item.id === fileId);
+
+  if (!file) {
+    throw new Error('找不到这个文件');
+  }
+
+  return file;
 }
 
 function getUniqueStoredPath(folderPath: string, fileName: string, index: number) {
@@ -368,6 +388,10 @@ async function parseDocument(filePath: string): Promise<string> {
 async function parseKnowledgeFile(knowledgeBase: KnowledgeBase, file: KnowledgeFile) {
   file.status = 'parsing';
   delete file.error;
+  delete file.embeddingsPath;
+  delete file.embeddedAt;
+  delete file.embeddingModel;
+  delete file.vectorCount;
 
   try {
     await fs.mkdir(path.join(knowledgeBase.folderPath, 'texts'), { recursive: true });
@@ -706,11 +730,7 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
 
 ipcMain.handle('kb:generate-embeddings', async (_event, knowledgeBaseId: string, model: string): Promise<KnowledgeBase> => {
   const store = await ensureStore();
-  const knowledgeBase = store.knowledgeBases.find((item) => item.id === knowledgeBaseId);
-
-  if (!knowledgeBase) {
-    throw new Error('找不到这个知识库');
-  }
+  const knowledgeBase = findKnowledgeBase(store, knowledgeBaseId);
 
   if (!model.trim()) {
     throw new Error('请选择 embedding 模型');
@@ -730,13 +750,64 @@ ipcMain.handle('kb:generate-embeddings', async (_event, knowledgeBaseId: string,
   return knowledgeBase;
 });
 
+ipcMain.handle('kb:reparse-file', async (_event, knowledgeBaseId: string, fileId: string): Promise<KnowledgeBase> => {
+  const store = await ensureStore();
+  const knowledgeBase = findKnowledgeBase(store, knowledgeBaseId);
+  const file = findKnowledgeFile(knowledgeBase, fileId);
+
+  await parseKnowledgeFile(knowledgeBase, file);
+  await saveStore(store);
+  return knowledgeBase;
+});
+
+ipcMain.handle('kb:reindex-file', async (_event, knowledgeBaseId: string, fileId: string, model: string): Promise<KnowledgeBase> => {
+  const store = await ensureStore();
+  const knowledgeBase = findKnowledgeBase(store, knowledgeBaseId);
+  const file = findKnowledgeFile(knowledgeBase, fileId);
+
+  if (!model.trim()) {
+    throw new Error('请选择 embedding 模型');
+  }
+
+  if (file.status !== 'parsed') {
+    throw new Error('请先解析这个文件');
+  }
+
+  await generateFileEmbeddings(knowledgeBase, file, model.trim());
+  await saveStore(store);
+  return knowledgeBase;
+});
+
+ipcMain.handle('kb:delete-file', async (_event, knowledgeBaseId: string, fileId: string): Promise<KnowledgeBase> => {
+  const store = await ensureStore();
+  const knowledgeBase = findKnowledgeBase(store, knowledgeBaseId);
+  const file = findKnowledgeFile(knowledgeBase, fileId);
+  const pathsToRemove = [file.storedPath, file.parsedPath, file.chunksPath, file.embeddingsPath].filter(Boolean);
+
+  for (const filePath of pathsToRemove) {
+    await fs.rm(filePath!, { force: true }).catch(() => {});
+  }
+
+  knowledgeBase.files = knowledgeBase.files.filter((item) => item.id !== fileId);
+  await saveStore(store);
+  return knowledgeBase;
+});
+
+ipcMain.handle('kb:open-folder', async (_event, knowledgeBaseId: string): Promise<boolean> => {
+  const store = await ensureStore();
+  const knowledgeBase = findKnowledgeBase(store, knowledgeBaseId);
+  const error = await shell.openPath(knowledgeBase.folderPath);
+
+  if (error) {
+    throw new Error(error);
+  }
+
+  return true;
+});
+
 ipcMain.handle('kb:search', async (_event, knowledgeBaseId: string, query: string, model: string): Promise<SearchResult[]> => {
   const store = await ensureStore();
-  const knowledgeBase = store.knowledgeBases.find((item) => item.id === knowledgeBaseId);
-
-  if (!knowledgeBase) {
-    throw new Error('找不到这个知识库');
-  }
+  const knowledgeBase = findKnowledgeBase(store, knowledgeBaseId);
 
   return searchKnowledgeBaseChunks(knowledgeBase, query, model);
 });
@@ -747,11 +818,7 @@ ipcMain.handle('kb:ask', async (_event, request: KnowledgeAnswerRequest): Promis
 
   try {
     const store = await ensureStore();
-    const knowledgeBase = store.knowledgeBases.find((item) => item.id === request.knowledgeBaseId);
-
-    if (!knowledgeBase) {
-      throw new Error('找不到这个知识库');
-    }
+    const knowledgeBase = findKnowledgeBase(store, request.knowledgeBaseId);
 
     const citations = await searchKnowledgeBaseChunks(knowledgeBase, request.question, request.embeddingModel);
     const answer = await sendChatRequest(

@@ -13,6 +13,13 @@ const api: LocalMindApi = {
   importKnowledgeFiles: (knowledgeBaseId: string) => ipcRenderer.invoke('kb:import-files', knowledgeBaseId),
   generateKnowledgeBaseEmbeddings: (knowledgeBaseId: string, model: string) =>
     ipcRenderer.invoke('kb:generate-embeddings', knowledgeBaseId, model),
+  reparseKnowledgeFile: (knowledgeBaseId: string, fileId: string) =>
+    ipcRenderer.invoke('kb:reparse-file', knowledgeBaseId, fileId),
+  reindexKnowledgeFile: (knowledgeBaseId: string, fileId: string, model: string) =>
+    ipcRenderer.invoke('kb:reindex-file', knowledgeBaseId, fileId, model),
+  deleteKnowledgeFile: (knowledgeBaseId: string, fileId: string) =>
+    ipcRenderer.invoke('kb:delete-file', knowledgeBaseId, fileId),
+  openKnowledgeBaseFolder: (knowledgeBaseId: string) => ipcRenderer.invoke('kb:open-folder', knowledgeBaseId),
   searchKnowledgeBase: (knowledgeBaseId: string, query: string, model: string) =>
     ipcRenderer.invoke('kb:search', knowledgeBaseId, query, model),
   askKnowledgeBase: (request: KnowledgeAnswerRequest) => ipcRenderer.invoke('kb:ask', request),
