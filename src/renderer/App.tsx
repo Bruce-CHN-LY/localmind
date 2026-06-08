@@ -1274,6 +1274,7 @@ function App() {
                       片段 {result.chunkIndex + 1} · {getMatchTypeText(result.matchType)} · 综合匹配度{' '}
                       {(result.score * 100).toFixed(1)}%
                     </span>
+                    {result.rerankReason ? <em>{result.rerankReason}</em> : null}
                     <p>{result.content}</p>
                   </article>
                 ))}

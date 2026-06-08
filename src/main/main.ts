@@ -656,6 +656,36 @@ function calculateKeywordScore(query: string, content: string, fileName: string)
   return Math.min(1, score / queryTokens.length);
 }
 
+function calculateRerankSignal(query: string, result: SearchResult) {
+  const queryTokens = tokenizeForSearch(query);
+  const searchableContent = result.content.toLowerCase();
+  const searchableFileName = result.fileName.toLowerCase();
+  const compactQuery = query.trim().toLowerCase();
+  const matchedTokens = queryTokens.filter(
+    (token) => searchableContent.includes(token) || searchableFileName.includes(token),
+  );
+  const tokenCoverage = queryTokens.length ? matchedTokens.length / queryTokens.length : 0;
+  const phraseHit = compactQuery.length >= 4 && searchableContent.includes(compactQuery);
+  const titleHit = matchedTokens.some((token) => searchableFileName.includes(token));
+  const lengthPenalty = result.content.length < 80 || result.content.length > 1800 ? 0.04 : 0;
+  const rerankScore =
+    tokenCoverage * 0.16 +
+    (phraseHit ? 0.12 : 0) +
+    (titleHit ? 0.08 : 0) -
+    lengthPenalty;
+  const reasons = [
+    phraseHit ? '完整问题短语命中' : '',
+    titleHit ? '文件名命中' : '',
+    tokenCoverage >= 0.6 ? '关键词覆盖较高' : '',
+    lengthPenalty ? '片段长度不理想' : '',
+  ].filter(Boolean);
+
+  return {
+    rerankScore,
+    rerankReason: reasons.length ? reasons.join('、') : '语义与关键词综合排序',
+  };
+}
+
 function getMatchType(vectorScore: number, keywordScore: number): SearchResult['matchType'] {
   if (vectorScore > 0 && keywordScore > 0.08) return 'hybrid';
   if (keywordScore > vectorScore) return 'keyword';
@@ -925,9 +955,8 @@ async function searchKnowledgeBaseChunks(knowledgeBase: KnowledgeBase, query: st
     for (const item of embeddings) {
       const vectorScore = cosineSimilarity(queryEmbedding, item.embedding);
       const keywordScore = calculateKeywordScore(query, item.content, item.fileName);
-      const score = vectorScore * 0.72 + keywordScore * 0.28;
-
-      resultsById.set(item.id, {
+      const baseScore = vectorScore * 0.72 + keywordScore * 0.28;
+      const result: SearchResult = {
         id: item.id,
         knowledgeBaseId: item.knowledgeBaseId,
         fileId: item.fileId,
@@ -936,10 +965,18 @@ async function searchKnowledgeBaseChunks(knowledgeBase: KnowledgeBase, query: st
         content: item.content,
         startOffset: item.startOffset,
         endOffset: item.endOffset,
-        score,
+        score: baseScore,
         vectorScore,
         keywordScore,
         matchType: getMatchType(vectorScore, keywordScore),
+      };
+      const rerankSignal = calculateRerankSignal(query, result);
+
+      resultsById.set(item.id, {
+        ...result,
+        score: Math.max(0, Math.min(1, baseScore + rerankSignal.rerankScore)),
+        rerankScore: rerankSignal.rerankScore,
+        rerankReason: rerankSignal.rerankReason,
       });
     }
   }

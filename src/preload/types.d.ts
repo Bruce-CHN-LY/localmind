@@ -84,6 +84,8 @@ export type SearchResult = KnowledgeChunk & {
   score: number;
   vectorScore?: number;
   keywordScore?: number;
+  rerankScore?: number;
+  rerankReason?: string;
   matchType?: 'vector' | 'keyword' | 'hybrid';
 };
 
