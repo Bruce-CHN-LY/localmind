@@ -112,6 +112,19 @@ function getFileStatusText(status: string) {
   }
 }
 
+function getMatchTypeText(matchType?: SearchResult['matchType']) {
+  switch (matchType) {
+    case 'hybrid':
+      return '混合命中';
+    case 'keyword':
+      return '关键词命中';
+    case 'vector':
+      return '语义命中';
+    default:
+      return '检索命中';
+  }
+}
+
 function App() {
   const [status, setStatus] = useState<OllamaStatus | null>(null);
   const [modelProvider, setModelProvider] = useState<ModelProvider>('ollama');
@@ -1062,7 +1075,7 @@ function App() {
                     <details key={citation.id}>
                       <summary>
                         [{index + 1}] {citation.fileName} · 片段 {citation.chunkIndex + 1} ·{' '}
-                        {(citation.score * 100).toFixed(1)}%
+                        {getMatchTypeText(citation.matchType)} · {(citation.score * 100).toFixed(1)}%
                       </summary>
                       <p>{citation.content}</p>
                     </details>
@@ -1258,7 +1271,8 @@ function App() {
                   <article className="search-result" key={result.id}>
                     <strong>{result.fileName}</strong>
                     <span>
-                      片段 {result.chunkIndex + 1} · 匹配度 {(result.score * 100).toFixed(1)}%
+                      片段 {result.chunkIndex + 1} · {getMatchTypeText(result.matchType)} · 综合匹配度{' '}
+                      {(result.score * 100).toFixed(1)}%
                     </span>
                     <p>{result.content}</p>
                   </article>

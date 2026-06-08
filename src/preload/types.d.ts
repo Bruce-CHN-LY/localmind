@@ -82,6 +82,9 @@ export type KnowledgeEmbedding = KnowledgeChunk & {
 
 export type SearchResult = KnowledgeChunk & {
   score: number;
+  vectorScore?: number;
+  keywordScore?: number;
+  matchType?: 'vector' | 'keyword' | 'hybrid';
 };
 
 export type KnowledgeAnswerRequest = ChatRequest & {

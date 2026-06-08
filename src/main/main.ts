@@ -625,6 +625,43 @@ function cosineSimilarity(a: number[], b: number[]) {
   return dot / (Math.sqrt(aMagnitude) * Math.sqrt(bMagnitude));
 }
 
+function tokenizeForSearch(text: string) {
+  const normalizedText = text.toLowerCase();
+  const latinTokens = normalizedText.match(/[a-z0-9][a-z0-9_-]{1,}/g) ?? [];
+  const chineseTokens = normalizedText.match(/[\p{Script=Han}]{2,}/gu) ?? [];
+  const chineseBigrams = chineseTokens.flatMap((token) =>
+    Array.from({ length: Math.max(0, token.length - 1) }, (_item, index) => token.slice(index, index + 2)),
+  );
+
+  return [...new Set([...latinTokens, ...chineseTokens, ...chineseBigrams])].filter((token) => token.length >= 2);
+}
+
+function calculateKeywordScore(query: string, content: string, fileName: string) {
+  const queryTokens = tokenizeForSearch(query);
+
+  if (queryTokens.length === 0) return 0;
+
+  const searchableText = `${fileName}\n${content}`.toLowerCase();
+  let score = 0;
+
+  for (const token of queryTokens) {
+    const escapedToken = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const matches = searchableText.match(new RegExp(escapedToken, 'g'))?.length ?? 0;
+
+    if (matches > 0) {
+      score += Math.min(1, 0.35 + matches * 0.15);
+    }
+  }
+
+  return Math.min(1, score / queryTokens.length);
+}
+
+function getMatchType(vectorScore: number, keywordScore: number): SearchResult['matchType'] {
+  if (vectorScore > 0 && keywordScore > 0.08) return 'hybrid';
+  if (keywordScore > vectorScore) return 'keyword';
+  return 'vector';
+}
+
 async function createEmbedding(model: string, text: string) {
   const data = await fetchJson<{ embedding?: number[] }>(`${OLLAMA_BASE_URL}/api/embeddings`, {
     method: 'POST',
@@ -880,13 +917,17 @@ async function searchKnowledgeBaseChunks(knowledgeBase: KnowledgeBase, query: st
   }
 
   const queryEmbedding = await createEmbedding(model.trim(), query.trim());
-  const results: SearchResult[] = [];
+  const resultsById = new Map<string, SearchResult>();
 
   for (const file of indexedFiles) {
     const embeddings = await readJsonFile<KnowledgeEmbedding[]>(file.embeddingsPath!);
 
     for (const item of embeddings) {
-      results.push({
+      const vectorScore = cosineSimilarity(queryEmbedding, item.embedding);
+      const keywordScore = calculateKeywordScore(query, item.content, item.fileName);
+      const score = vectorScore * 0.72 + keywordScore * 0.28;
+
+      resultsById.set(item.id, {
         id: item.id,
         knowledgeBaseId: item.knowledgeBaseId,
         fileId: item.fileId,
@@ -895,19 +936,22 @@ async function searchKnowledgeBaseChunks(knowledgeBase: KnowledgeBase, query: st
         content: item.content,
         startOffset: item.startOffset,
         endOffset: item.endOffset,
-        score: cosineSimilarity(queryEmbedding, item.embedding),
+        score,
+        vectorScore,
+        keywordScore,
+        matchType: getMatchType(vectorScore, keywordScore),
       });
     }
   }
 
-  return results.sort((a, b) => b.score - a.score).slice(0, 8);
+  return [...resultsById.values()].sort((a, b) => b.score - a.score).slice(0, 8);
 }
 
 function buildKnowledgePrompt(question: string, citations: SearchResult[], knowledgeRules: string) {
   const context = citations
     .map(
       (citation, index) =>
-        `[${index + 1}] ${citation.fileName} · 片段 ${citation.chunkIndex + 1} · 匹配度 ${(citation.score * 100).toFixed(1)}%\n${citation.content}`,
+        `[${index + 1}] ${citation.fileName} · 片段 ${citation.chunkIndex + 1} · 综合匹配度 ${(citation.score * 100).toFixed(1)}%\n${citation.content}`,
     )
     .join('\n\n---\n\n');
 

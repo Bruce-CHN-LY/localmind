@@ -15,7 +15,7 @@ It supports local Ollama models and OpenAI-compatible network APIs, so users can
 - Shows progress for import, parsing, and indexing
 - Extracts document text into local `texts` folders
 - Generates local text chunks and Ollama embeddings
-- Runs local vector search and citation-backed Q&A
+- Runs local hybrid retrieval with keyword search + vector similarity search
 - Imports and exports knowledge-base backup archives
 - Runs knowledge-base health checks for files, parsing, and indexes
 - Lets each knowledge base define answer rules in `AI_CONFIG.md`
@@ -58,7 +58,7 @@ This is an early-stage desktop app. The current version already includes:
 - Local text chunk generation
 - Ollama embedding generation
 - Import and indexing progress indicators
-- Local vector similarity search
+- Local hybrid retrieval
 - Citation-backed knowledge-base Q&A
 - File deletion, re-parsing, and re-indexing
 - Opening the local knowledge-base folder
@@ -208,7 +208,6 @@ LocalMind will move in three stages: make the app easier to use, improve retriev
 
 ### Mid Term: Better Knowledge-Base Q&A
 
-- Add hybrid retrieval: keyword search + vector search
 - Add reranking to reduce false-positive matches
 - Add OCR for images and scanned PDFs
 - Add support for more document formats
