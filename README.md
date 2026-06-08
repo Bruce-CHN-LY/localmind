@@ -200,20 +200,47 @@ The right-panel health check inspects missing files, failed parsing, missing ind
 - Network model calls only send the current prompt and selected context.
 - Future RAG retrieval should send only relevant chunks, not entire knowledge bases.
 
-## Roadmap
+## Development Path and Future Work
 
-LocalMind will move in three stages: make the app easier to use, improve retrieval quality, then evolve toward graph-aware knowledge bases.
+LocalMind is moving in four layers: make the app stable for non-technical users, improve answer quality, strengthen the open-source engineering workflow, then evolve toward graph-aware knowledge bases.
 
-### Near Term: Usability and Release Polish
+### Completed: Local-First Knowledge Assistant
 
-- Improve macOS release packaging and installation notes
-- Add Windows packaging
-- Add screenshots, short demos, and clearer onboarding docs
+- Multiple knowledge bases, dedicated folders, backup import/export
+- PDF, DOCX, Markdown, TXT, CSV, TSV, JSON, and HTML parsing
+- Local image OCR for PNG, JPG, JPEG, and WebP
+- Chunking, embedding generation, hybrid retrieval, and local reranking
+- Citation-backed Q&A and retrieval testing
+- Knowledge-base health checks, `AI_CONFIG.md`, `index.md`, and `log.md`
+- Ollama local models, OpenAI-compatible APIs, multiple model profiles, and connection tests
+- Stop generation, first-run onboarding, import/indexing progress
+- macOS local packaging, app icon, and initial open-source docs
 
-### Mid Term: Better Knowledge-Base Q&A
+### Next: Release and Onboarding Polish
+
+- Improve macOS installation notes, download notes, and first-open guidance
+- Add screenshots, short UI demos, and a Chinese quick-start guide
+- Prepare a GitHub Releases workflow
+- Add Windows packaging configuration and usage notes
+- Add “reset onboarding” and “open local data location” actions
+
+### Mid Term: Knowledge Quality and Reliability
 
 - Add OCR for scanned PDFs
+- Add OCR language selection and an OCR enable/disable switch
 - Add compatibility tests for knowledge-base import/export
+- Add retry handling for parsing failures
+- Add stale-index reminders after files are re-parsed
+- Add retrieval settings such as result count, rerank weight, and keyword weight
+
+### Engineering: Easier Open-Source Extension
+
+- Add automated tests for parsing, import/export, retrieval ranking, and model settings
+- Add GitHub Actions for type checks, builds, and release artifacts
+- Add plugin-style model provider configuration
+- Add plugin-style document parsers
+- Add error-log export for issue reports
+- Expand security notes for API keys, local files, and network API boundaries
 
 ### Long Term: Graph-Aware Retrieval Inspired by codegraph
 
@@ -224,7 +251,7 @@ LocalMind will move in three stages: make the app easier to use, improve retriev
 - Support codebase knowledge bases with files, functions, dependencies, and docs
 - Support graph-aware search for Markdown and Obsidian-style note vaults
 
-This direction is inspired by [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph), while LocalMind will stay focused on an integrated desktop experience for non-technical users.
+The graph-aware direction is inspired by [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph), while LocalMind will stay focused on an integrated desktop experience for non-technical users.
 
 ## Contributing
 
