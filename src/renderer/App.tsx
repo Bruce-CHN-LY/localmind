@@ -1024,7 +1024,7 @@ function App() {
               </article>
               <article>
                 <strong>3. 创建知识库并导入资料</strong>
-                <span>每个知识库都有独立文件夹，支持 PDF、Word、Markdown、TXT、CSV、JSON、HTML。</span>
+                <span>每个知识库都有独立文件夹，支持 PDF、Word、Markdown、TXT、CSV、JSON、HTML 和图片 OCR。</span>
               </article>
               <article>
                 <strong>4. 点击生成索引</strong>
@@ -1205,7 +1205,7 @@ function App() {
                 <div className="source-empty">
                   <FileText size={24} />
                   <strong>还没有文件</strong>
-                  <span>支持先导入 PDF、Word、Markdown、TXT、CSV、JSON 和 HTML。</span>
+                  <span>支持先导入 PDF、Word、Markdown、TXT、CSV、JSON、HTML 和图片。</span>
                 </div>
               ) : (
                 selectedKnowledgeBase.files.map((file) => (

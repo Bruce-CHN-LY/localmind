@@ -5,6 +5,7 @@ import path from 'node:path';
 import AdmZip from 'adm-zip';
 import mammoth from 'mammoth';
 import pdfParse from 'pdf-parse';
+import { recognize } from 'tesseract.js';
 import type {
   ChatRequest,
   KnowledgeAnswer,
@@ -40,6 +41,10 @@ const SUPPORTED_DOCUMENT_EXTENSIONS = new Set([
   '.json',
   '.html',
   '.htm',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp',
 ]);
 
 app.setName('LocalMind');
@@ -589,6 +594,11 @@ function jsonToReadableText(value: unknown, prefix = ''): string {
   return '';
 }
 
+async function ocrImageToText(filePath: string) {
+  const result = await recognize(filePath, 'chi_sim+eng');
+  return normalizeText(result.data.text);
+}
+
 function splitTextIntoChunks(text: string, options = { maxLength: 1200, overlap: 180 }) {
   const chunks: Array<{ content: string; startOffset: number; endOffset: number }> = [];
   const paragraphs = text
@@ -803,6 +813,10 @@ async function parseDocument(filePath: string): Promise<string> {
   if (extension === '.json') {
     const raw = await fs.readFile(filePath, 'utf8');
     return normalizeText(jsonToReadableText(JSON.parse(raw)));
+  }
+
+  if (extension === '.png' || extension === '.jpg' || extension === '.jpeg' || extension === '.webp') {
+    return ocrImageToText(filePath);
   }
 
   if (extension === '.docx') {
@@ -1169,7 +1183,10 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
     title: '导入资料或文件夹到知识库',
     properties: ['openFile', 'openDirectory', 'multiSelections'],
     filters: [
-      { name: 'Supported Documents', extensions: ['pdf', 'docx', 'md', 'markdown', 'txt', 'csv', 'tsv', 'json', 'html', 'htm'] },
+      {
+        name: 'Supported Documents',
+        extensions: ['pdf', 'docx', 'md', 'markdown', 'txt', 'csv', 'tsv', 'json', 'html', 'htm', 'png', 'jpg', 'jpeg', 'webp'],
+      },
       { name: 'All Files', extensions: ['*'] },
     ],
   };
@@ -1186,7 +1203,7 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
   const importPaths = await collectSupportedDocumentPaths(result.filePaths);
 
   if (importPaths.length === 0) {
-    throw new Error('没有找到支持的文件。当前支持 PDF、Word、Markdown、TXT、CSV、TSV、JSON 和 HTML。');
+    throw new Error('没有找到支持的文件。当前支持 PDF、Word、Markdown、TXT、CSV、TSV、JSON、HTML 和图片 OCR。');
   }
 
   emitKnowledgeProgress({
