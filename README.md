@@ -69,6 +69,7 @@ This is an early-stage desktop app. The current version already includes:
 - Per-knowledge-base answer rules
 - Auto-maintained index and operation log
 - macOS packaging configuration
+- macOS app icon configuration
 
 ## Screens
 
@@ -204,7 +205,7 @@ LocalMind will move in three stages: make the app easier to use, improve retriev
 
 ### Near Term: Usability and Release Polish
 
-- Improve macOS release packaging, app icon, and installation notes
+- Improve macOS release packaging and installation notes
 - Add Windows packaging
 - Add screenshots, short demos, and clearer onboarding docs
 

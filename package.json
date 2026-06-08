@@ -32,10 +32,12 @@
     },
     "files": [
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "build/icon.icns"
     ],
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
       "target": [
         "dmg",
         "zip"
