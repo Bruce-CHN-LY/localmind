@@ -211,6 +211,15 @@ Contributions are welcome. Good starting areas:
 
 Please do not submit API keys, private documents, parsed knowledge-base text, or local app data.
 
+## Acknowledgements
+
+LocalMind is inspired by several open-source projects:
+
+- [zxfccmm4/Obsidian-OpenCode-Knowledge](https://github.com/zxfccmm4/Obsidian-OpenCode-Knowledge): inspired the knowledge-folder structure, `AI_CONFIG.md` rule file, maintained index, operation log, and health-check ideas.
+- [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph): inspired the “build a local index first, then reduce context reads” direction, which is especially relevant for future codebase, Markdown-note, and large-knowledge-base graph retrieval.
+
+Thanks to these projects and their authors for sharing their work openly. LocalMind aims to stay local-first and friendly for non-technical users while learning from strong open-source ideas.
+
 ## License
 
 MIT

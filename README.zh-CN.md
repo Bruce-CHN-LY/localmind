@@ -190,6 +190,15 @@ log.md        操作日志
 
 请不要提交 API Key、私人文件、解析文本、向量文件或本地应用数据。
 
+## 致谢与灵感来源
+
+LocalMind 在设计过程中受到这些开源项目启发：
+
+- [zxfccmm4/Obsidian-OpenCode-Knowledge](https://github.com/zxfccmm4/Obsidian-OpenCode-Knowledge)：启发了知识库文件夹结构、`AI_CONFIG.md` 规则文件、索引文件和体检思路。
+- [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph)：启发了“先构建本地索引，再减少上下文读取”的思路，尤其适合未来做代码库、Markdown 笔记和大型知识库的图谱化检索。
+
+感谢这些项目和作者的开放分享。LocalMind 会保持本地优先、普通用户友好，同时吸收优秀开源项目中适合桌面知识库助手的设计。
+
 ## License
 
 MIT
