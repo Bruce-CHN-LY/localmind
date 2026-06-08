@@ -29,7 +29,18 @@ const APP_DATA_DIR = path.join(app.getPath('appData'), 'LocalMind');
 const KNOWLEDGE_ARCHIVE_FORMAT = 'localmind-knowledge-base';
 const KNOWLEDGE_ARCHIVE_VERSION = 1;
 const KNOWLEDGE_BASE_DIRECTORIES = ['raw', 'notes', 'assets', 'texts', 'chunks', 'embeddings'];
-const SUPPORTED_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.md', '.markdown', '.txt']);
+const SUPPORTED_DOCUMENT_EXTENSIONS = new Set([
+  '.pdf',
+  '.docx',
+  '.md',
+  '.markdown',
+  '.txt',
+  '.csv',
+  '.tsv',
+  '.json',
+  '.html',
+  '.htm',
+]);
 
 app.setName('LocalMind');
 app.setPath('userData', APP_DATA_DIR);
@@ -539,6 +550,45 @@ function normalizeText(text: string) {
     .trim();
 }
 
+function stripHtmlToText(html: string) {
+  return normalizeText(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/g, "'"),
+  );
+}
+
+function jsonToReadableText(value: unknown, prefix = ''): string {
+  if (value === null || value === undefined) return '';
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return `${prefix}${String(value)}`;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item, index) => jsonToReadableText(item, `${prefix}${index + 1}. `))
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .map(([key, item]) => jsonToReadableText(item, `${prefix}${key}: `))
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  return '';
+}
+
 function splitTextIntoChunks(text: string, options = { maxLength: 1200, overlap: 180 }) {
   const chunks: Array<{ content: string; startOffset: number; endOffset: number }> = [];
   const paragraphs = text
@@ -742,8 +792,17 @@ async function generateFileEmbeddings(knowledgeBase: KnowledgeBase, file: Knowle
 async function parseDocument(filePath: string): Promise<string> {
   const extension = path.extname(filePath).toLowerCase();
 
-  if (extension === '.txt' || extension === '.md' || extension === '.markdown') {
+  if (extension === '.txt' || extension === '.md' || extension === '.markdown' || extension === '.csv' || extension === '.tsv') {
     return normalizeText(await fs.readFile(filePath, 'utf8'));
+  }
+
+  if (extension === '.html' || extension === '.htm') {
+    return stripHtmlToText(await fs.readFile(filePath, 'utf8'));
+  }
+
+  if (extension === '.json') {
+    const raw = await fs.readFile(filePath, 'utf8');
+    return normalizeText(jsonToReadableText(JSON.parse(raw)));
   }
 
   if (extension === '.docx') {
@@ -1110,7 +1169,7 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
     title: '导入资料或文件夹到知识库',
     properties: ['openFile', 'openDirectory', 'multiSelections'],
     filters: [
-      { name: 'Supported Documents', extensions: ['pdf', 'docx', 'md', 'markdown', 'txt'] },
+      { name: 'Supported Documents', extensions: ['pdf', 'docx', 'md', 'markdown', 'txt', 'csv', 'tsv', 'json', 'html', 'htm'] },
       { name: 'All Files', extensions: ['*'] },
     ],
   };
@@ -1127,7 +1186,7 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
   const importPaths = await collectSupportedDocumentPaths(result.filePaths);
 
   if (importPaths.length === 0) {
-    throw new Error('没有找到支持的文件。当前支持 PDF、Word、Markdown 和 TXT。');
+    throw new Error('没有找到支持的文件。当前支持 PDF、Word、Markdown、TXT、CSV、TSV、JSON 和 HTML。');
   }
 
   emitKnowledgeProgress({

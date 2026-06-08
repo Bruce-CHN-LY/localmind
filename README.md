@@ -11,7 +11,7 @@ It supports local Ollama models and OpenAI-compatible network APIs, so users can
 - Creates multiple local knowledge bases
 - Creates a dedicated folder for each knowledge base
 - Maintains `raw/`, `notes/`, `assets/`, `index.md`, `log.md`, and `AI_CONFIG.md`
-- Imports PDF, Word, Markdown, and TXT files, including folder batch import
+- Imports PDF, Word, Markdown, TXT, CSV, TSV, JSON, and HTML files, including folder batch import
 - Shows progress for import, parsing, and indexing
 - Extracts document text into local `texts` folders
 - Generates local text chunks and Ollama embeddings
@@ -55,7 +55,7 @@ This is an early-stage desktop app. The current version already includes:
 - Knowledge base creation
 - Local file import
 - Folder batch import
-- PDF, DOCX, Markdown, and TXT text extraction
+- PDF, DOCX, Markdown, TXT, CSV, TSV, JSON, and HTML text extraction
 - Local text chunk generation
 - Ollama embedding generation
 - Import and indexing progress indicators
@@ -211,7 +211,6 @@ LocalMind will move in three stages: make the app easier to use, improve retriev
 ### Mid Term: Better Knowledge-Base Q&A
 
 - Add OCR for images and scanned PDFs
-- Add support for more document formats
 - Add compatibility tests for knowledge-base import/export
 
 ### Long Term: Graph-Aware Retrieval Inspired by codegraph
