@@ -31,6 +31,11 @@ export type ModelSettings = {
   networkModels: NetworkModelConfig[];
 };
 
+export type NetworkModelTestResult = {
+  ok: boolean;
+  message: string;
+};
+
 export type ChatRequest = {
   requestId: string;
   provider: ModelProvider;
@@ -117,6 +122,7 @@ export type LocalMindApi = {
   listOllamaModels: () => Promise<OllamaModel[]>;
   sendChat: (request: ChatRequest) => Promise<string>;
   stopChat: (requestId: string) => Promise<boolean>;
+  testNetworkModel: (config: NetworkModelConfig) => Promise<NetworkModelTestResult>;
   getModelSettings: () => Promise<ModelSettings>;
   saveModelSettings: (settings: ModelSettings) => Promise<ModelSettings>;
   listKnowledgeBases: () => Promise<KnowledgeBase[]>;

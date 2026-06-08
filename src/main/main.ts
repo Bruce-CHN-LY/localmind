@@ -18,6 +18,7 @@ import type {
   ModelProvider,
   ModelSettings,
   NetworkModelConfig,
+  NetworkModelTestResult,
   OllamaModel,
   SearchResult,
   OllamaStatus,
@@ -773,6 +774,53 @@ async function sendNetworkChat(request: ChatRequest, signal: AbortSignal) {
   return data.choices?.[0]?.message?.content?.trim() ?? '';
 }
 
+async function testNetworkModelConnection(config: NetworkModelConfig): Promise<NetworkModelTestResult> {
+  if (!config.baseUrl.trim() || !config.apiKey.trim() || !config.model.trim()) {
+    return {
+      ok: false,
+      message: '请先填写 API 地址、模型名和 API Key。',
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
+
+  try {
+    const answer = await sendNetworkChat(
+      {
+        requestId: randomUUID(),
+        provider: 'network',
+        model: config.model,
+        messages: [
+          {
+            role: 'user',
+            content: '请只回复：OK',
+          },
+        ],
+        networkConfig: config,
+      },
+      controller.signal,
+    );
+
+    return {
+      ok: true,
+      message: answer ? `连接成功，模型返回：${answer.slice(0, 80)}` : '连接成功，但模型没有返回文本。',
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        controller.signal.aborted
+          ? '连接超时，请检查 API 地址、网络或服务商状态。'
+          : error instanceof Error
+            ? error.message
+            : '连接测试失败。',
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function sendChatRequest(request: ChatRequest, signal: AbortSignal) {
   if (request.provider === 'network') {
     return await sendNetworkChat(request, signal);
@@ -879,6 +927,10 @@ ipcMain.handle('ollama:stop-chat', async (_event, requestId: string): Promise<bo
   controller.abort();
   activeChatRequests.delete(requestId);
   return true;
+});
+
+ipcMain.handle('network:test-model', async (_event, config: NetworkModelConfig): Promise<NetworkModelTestResult> => {
+  return testNetworkModelConnection(config);
 });
 
 ipcMain.handle('settings:get-model', async (): Promise<ModelSettings> => {

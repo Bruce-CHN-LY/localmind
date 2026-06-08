@@ -1,11 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ChatRequest, KnowledgeAnswerRequest, LocalMindApi, ModelSettings } from './types';
+import type { ChatRequest, KnowledgeAnswerRequest, LocalMindApi, ModelSettings, NetworkModelConfig } from './types';
 
 const api: LocalMindApi = {
   getOllamaStatus: () => ipcRenderer.invoke('ollama:status'),
   listOllamaModels: () => ipcRenderer.invoke('ollama:models'),
   sendChat: (request: ChatRequest) => ipcRenderer.invoke('ollama:chat', request),
   stopChat: (requestId: string) => ipcRenderer.invoke('ollama:stop-chat', requestId),
+  testNetworkModel: (config: NetworkModelConfig) => ipcRenderer.invoke('network:test-model', config),
   getModelSettings: () => ipcRenderer.invoke('settings:get-model'),
   saveModelSettings: (settings: ModelSettings) => ipcRenderer.invoke('settings:save-model', settings),
   listKnowledgeBases: () => ipcRenderer.invoke('kb:list'),

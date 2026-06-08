@@ -21,6 +21,7 @@ It supports local Ollama models and OpenAI-compatible network APIs, so users can
 - Connects to Ollama local models
 - Connects to OpenAI-compatible network APIs
 - Saves network API keys locally with Electron `safeStorage`
+- Tests network model connections before saving profiles
 - Includes presets for DeepSeek, OpenAI, OpenRouter, SiliconFlow, and DashScope-compatible APIs
 - Shows a first-run onboarding guide
 - Stops long-running model generation
@@ -45,6 +46,7 @@ This is an early-stage desktop app. The current version already includes:
 - Local model chat
 - OpenAI-compatible network API chat
 - Multiple saved network model profiles
+- Network model connection tests
 - Common network provider presets
 - First-run onboarding guide
 - Stop generation button
@@ -200,7 +202,6 @@ LocalMind will move in three stages: make the app easier to use, improve retriev
 - Improve macOS release packaging, app icon, and installation notes
 - Add Windows packaging
 - Add progress indicators for import, parsing, and indexing
-- Add model connection tests before saving network API profiles
 - Add screenshots, short demos, and clearer onboarding docs
 
 ### Mid Term: Better Knowledge-Base Q&A

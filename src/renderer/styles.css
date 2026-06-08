@@ -264,13 +264,36 @@ select {
   cursor: pointer;
 }
 
+.network-actions .test-model-button {
+  color: #715029;
+  background: #fff6df;
+  border-color: #e5c98e;
+}
+
 .network-actions .save-settings-button {
   color: #fff;
   background: #3d5a4b;
   border: 0;
 }
 
-.save-settings-button:disabled {
+.network-test-result {
+  padding: 9px 10px;
+  color: #7d4237;
+  background: #fff0ec;
+  border: 1px solid #e2b9ad;
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.network-test-result.ok {
+  color: #285642;
+  background: #eef8f2;
+  border-color: #a9c9b8;
+}
+
+.save-settings-button:disabled,
+.test-model-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }

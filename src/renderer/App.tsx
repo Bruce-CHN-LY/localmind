@@ -146,12 +146,15 @@ function App() {
   const [busyFileId, setBusyFileId] = useState('');
   const [isSearchingKnowledgeBase, setIsSearchingKnowledgeBase] = useState(false);
   const [isSavingModelSettings, setIsSavingModelSettings] = useState(false);
+  const [isTestingNetworkModel, setIsTestingNetworkModel] = useState(false);
   const [isNetworkSettingsOpen, setIsNetworkSettingsOpen] = useState(false);
   const [editingNetworkModelId, setEditingNetworkModelId] = useState('');
   const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
   const [knowledgeSearchResults, setKnowledgeSearchResults] = useState<SearchResult[]>([]);
   const [healthReport, setHealthReport] = useState<KnowledgeHealthReport | null>(null);
   const [notice, setNotice] = useState('');
+  const [networkTestMessage, setNetworkTestMessage] = useState('');
+  const [isNetworkTestOk, setIsNetworkTestOk] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   const selectedNetworkModel = useMemo(
@@ -256,6 +259,40 @@ function App() {
     setNetworkName(preset.name);
     setNetworkBaseUrl(preset.baseUrl);
     setNetworkModel(preset.model);
+    setNetworkTestMessage('');
+    setIsNetworkTestOk(false);
+  }
+
+  function clearNetworkTestResult() {
+    setNetworkTestMessage('');
+    setIsNetworkTestOk(false);
+  }
+
+  async function handleTestNetworkModel() {
+    if (isTestingNetworkModel) return;
+
+    setIsTestingNetworkModel(true);
+    setNetworkTestMessage('');
+    setIsNetworkTestOk(false);
+    setNotice('');
+
+    try {
+      const result = await window.localMind.testNetworkModel({
+        id: editingNetworkModelId || 'testing-network-model',
+        name: networkName.trim() || networkModel.trim() || 'Network Model',
+        baseUrl: networkBaseUrl,
+        model: networkModel,
+        apiKey: networkApiKey,
+      });
+
+      setIsNetworkTestOk(result.ok);
+      setNetworkTestMessage(result.message);
+    } catch (error) {
+      setIsNetworkTestOk(false);
+      setNetworkTestMessage(error instanceof Error ? error.message : '连接测试失败');
+    } finally {
+      setIsTestingNetworkModel(false);
+    }
   }
 
   async function handleSaveModelSettings() {
@@ -285,6 +322,8 @@ function App() {
       setSelectedNetworkModelId(settings.selectedNetworkModelId);
       setEditingNetworkModelId('');
       setIsNetworkSettingsOpen(false);
+      setNetworkTestMessage('');
+      setIsNetworkTestOk(false);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '保存模型设置失败');
     } finally {
@@ -298,6 +337,8 @@ function App() {
     setNetworkBaseUrl('https://api.deepseek.com');
     setNetworkModel('');
     setNetworkApiKey('');
+    setNetworkTestMessage('');
+    setIsNetworkTestOk(false);
     setIsNetworkSettingsOpen(true);
   }
 
@@ -312,6 +353,8 @@ function App() {
     setNetworkBaseUrl(selectedNetworkModel.baseUrl);
     setNetworkModel(selectedNetworkModel.model);
     setNetworkApiKey(selectedNetworkModel.apiKey);
+    setNetworkTestMessage('');
+    setIsNetworkTestOk(false);
     setIsNetworkSettingsOpen(true);
   }
 
@@ -723,7 +766,10 @@ function App() {
                     显示名称
                     <input
                       value={networkName}
-                      onChange={(event) => setNetworkName(event.target.value)}
+                      onChange={(event) => {
+                        setNetworkName(event.target.value);
+                        clearNetworkTestResult();
+                      }}
                       placeholder="DeepSeek Chat"
                     />
                   </label>
@@ -731,7 +777,10 @@ function App() {
                     API 地址
                     <input
                       value={networkBaseUrl}
-                      onChange={(event) => setNetworkBaseUrl(event.target.value)}
+                      onChange={(event) => {
+                        setNetworkBaseUrl(event.target.value);
+                        clearNetworkTestResult();
+                      }}
                       placeholder="https://api.deepseek.com"
                     />
                   </label>
@@ -739,7 +788,10 @@ function App() {
                     模型名
                     <input
                       value={networkModel}
-                      onChange={(event) => setNetworkModel(event.target.value)}
+                      onChange={(event) => {
+                        setNetworkModel(event.target.value);
+                        clearNetworkTestResult();
+                      }}
                       placeholder="deepseek-chat"
                     />
                   </label>
@@ -747,7 +799,10 @@ function App() {
                     API Key
                     <input
                       value={networkApiKey}
-                      onChange={(event) => setNetworkApiKey(event.target.value)}
+                      onChange={(event) => {
+                        setNetworkApiKey(event.target.value);
+                        clearNetworkTestResult();
+                      }}
                       placeholder="输入后加密保存到本机"
                       type="password"
                     />
@@ -755,7 +810,20 @@ function App() {
                   <p className="hint">
                     模板只会帮你填写地址和模型名，API Key 仍然加密保存在本机。
                   </p>
+                  {networkTestMessage ? (
+                    <div className={`network-test-result ${isNetworkTestOk ? 'ok' : 'error'}`}>
+                      {networkTestMessage}
+                    </div>
+                  ) : null}
                   <div className="network-actions">
+                    <button
+                      className="test-model-button"
+                      disabled={isTestingNetworkModel || !networkBaseUrl.trim() || !networkModel.trim() || !networkApiKey.trim()}
+                      onClick={handleTestNetworkModel}
+                      type="button"
+                    >
+                      {isTestingNetworkModel ? '测试中' : '测试连接'}
+                    </button>
                     <button
                       className="save-settings-button"
                       disabled={isSavingModelSettings || !networkBaseUrl.trim() || !networkModel.trim()}
@@ -764,6 +832,8 @@ function App() {
                     >
                       {isSavingModelSettings ? '保存中' : editingNetworkModelId ? '更新模型' : '保存模型'}
                     </button>
+                  </div>
+                  <div className="network-actions">
                     {networkModels.length > 0 ? (
                       <button onClick={() => setIsNetworkSettingsOpen(false)} type="button">
                         取消
