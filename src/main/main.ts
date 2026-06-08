@@ -775,7 +775,7 @@ function createWindow() {
     },
   });
 
-  if (process.env.NODE_ENV === 'production') {
+  if (app.isPackaged || process.env.NODE_ENV === 'production') {
     mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
   } else {
     mainWindow.loadURL('http://127.0.0.1:5173');
