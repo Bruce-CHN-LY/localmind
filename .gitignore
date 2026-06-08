@@ -1,5 +1,6 @@
 node_modules/
 dist/
+release/
 .DS_Store
 npm-debug.log*
 yarn-debug.log*
@@ -12,4 +13,3 @@ pnpm-debug.log*
 
 *.local
 coverage/
-

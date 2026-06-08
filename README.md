@@ -12,6 +12,9 @@ It supports local Ollama models and OpenAI-compatible network APIs, so users can
 - Creates a dedicated folder for each knowledge base
 - Imports PDF, Word, Markdown, and TXT files
 - Extracts document text into local `texts` folders
+- Generates local text chunks and Ollama embeddings
+- Runs local vector search and citation-backed Q&A
+- Imports and exports knowledge-base backup archives
 - Connects to Ollama local models
 - Connects to OpenAI-compatible network APIs
 - Saves network API keys locally with Electron `safeStorage`
@@ -47,11 +50,8 @@ This is an early-stage desktop app. The current version already includes:
 - Citation-backed knowledge-base Q&A
 - File deletion, re-parsing, and re-indexing
 - Opening the local knowledge-base folder
-
-The next milestone is workflow polish:
-
-- Import/export
-- Packaging
+- Knowledge-base backup import/export
+- macOS packaging configuration
 
 ## Screens
 
@@ -115,6 +115,20 @@ npm run typecheck
 npm run build
 ```
 
+## Package
+
+Create a local macOS app bundle:
+
+```bash
+npm run pack
+```
+
+Create macOS release artifacts:
+
+```bash
+npm run dist:mac
+```
+
 ## Data Storage
 
 Local app data is stored outside the repository, under the system application data directory.
@@ -130,10 +144,13 @@ This directory may contain:
 - Knowledge-base folders
 - Imported source files
 - Parsed text files
+- Text chunks and embedding vectors
 - Encrypted model settings
 - Runtime logs
 
 Do not commit this data.
+
+Knowledge bases can be exported from the app as `.localmind.zip` backup archives and imported into another LocalMind environment.
 
 ## Privacy Notes
 
@@ -147,7 +164,7 @@ Do not commit this data.
 
 - Add import/export for knowledge bases
 - Add more model providers
-- Add app packaging for macOS and Windows
+- Add Windows packaging
 - Add tests for parsers and model adapters
 
 ## Contributing

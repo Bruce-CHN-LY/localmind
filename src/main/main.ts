@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell, type OpenDialo
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import AdmZip from 'adm-zip';
 import mammoth from 'mammoth';
 import pdfParse from 'pdf-parse';
 import type {
@@ -21,6 +22,8 @@ import type {
 } from '../preload/types';
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434';
 const APP_DATA_DIR = path.join(app.getPath('appData'), 'LocalMind');
+const KNOWLEDGE_ARCHIVE_FORMAT = 'localmind-knowledge-base';
+const KNOWLEDGE_ARCHIVE_VERSION = 1;
 
 app.setName('LocalMind');
 app.setPath('userData', APP_DATA_DIR);
@@ -46,6 +49,13 @@ type LocalMindStore = {
       encryptedApiKey?: string;
     }>;
   };
+};
+
+type KnowledgeBaseArchiveManifest = {
+  format: typeof KNOWLEDGE_ARCHIVE_FORMAT;
+  version: typeof KNOWLEDGE_ARCHIVE_VERSION;
+  exportedAt: string;
+  knowledgeBase: KnowledgeBase;
 };
 
 function getStorePath() {
@@ -220,6 +230,64 @@ function getChunksPath(folderPath: string, fileId: string) {
 
 function getEmbeddingsPath(folderPath: string, fileId: string) {
   return path.join(folderPath, 'embeddings', `${fileId}.json`);
+}
+
+function getArchiveRelativePath(filePath: string | undefined, folderPath: string) {
+  if (!filePath) return undefined;
+  const relativePath = path.relative(folderPath, filePath);
+
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    return undefined;
+  }
+
+  return relativePath.replace(/\\/g, '/');
+}
+
+function getRestoredArchivePath(folderPath: string, relativePath: string | undefined) {
+  if (!relativePath) return undefined;
+  return path.join(folderPath, relativePath);
+}
+
+async function rewriteJsonArray<T extends { knowledgeBaseId?: string }>(filePath: string | undefined, knowledgeBaseId: string) {
+  if (!filePath) return;
+
+  try {
+    const items = await readJsonFile<T[]>(filePath);
+    await fs.writeFile(
+      filePath,
+      JSON.stringify(
+        items.map((item) => ({
+          ...item,
+          knowledgeBaseId,
+        })),
+        null,
+        2,
+      ),
+      'utf8',
+    );
+  } catch {
+    await fs.rm(filePath, { force: true }).catch(() => {});
+  }
+}
+
+function createArchiveManifest(knowledgeBase: KnowledgeBase): KnowledgeBaseArchiveManifest {
+  return {
+    format: KNOWLEDGE_ARCHIVE_FORMAT,
+    version: KNOWLEDGE_ARCHIVE_VERSION,
+    exportedAt: new Date().toISOString(),
+    knowledgeBase: {
+      ...knowledgeBase,
+      folderPath: '',
+      files: knowledgeBase.files.map((file) => ({
+        ...file,
+        originalPath: getArchiveRelativePath(file.originalPath, knowledgeBase.folderPath) ?? file.name,
+        storedPath: getArchiveRelativePath(file.storedPath, knowledgeBase.folderPath) ?? '',
+        parsedPath: getArchiveRelativePath(file.parsedPath, knowledgeBase.folderPath),
+        chunksPath: getArchiveRelativePath(file.chunksPath, knowledgeBase.folderPath),
+        embeddingsPath: getArchiveRelativePath(file.embeddingsPath, knowledgeBase.folderPath),
+      })),
+    },
+  };
 }
 
 function normalizeText(text: string) {
@@ -726,6 +794,122 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
 
   await saveStore(store);
   return knowledgeBase;
+});
+
+ipcMain.handle('kb:export', async (_event, knowledgeBaseId: string): Promise<string> => {
+  const store = await ensureStore();
+  const knowledgeBase = findKnowledgeBase(store, knowledgeBaseId);
+  const defaultPath = path.join(
+    app.getPath('documents'),
+    `${sanitizeFolderName(knowledgeBase.name)}.localmind.zip`,
+  );
+  const result = mainWindow
+    ? await dialog.showSaveDialog(mainWindow, {
+        title: '导出知识库备份',
+        defaultPath,
+        filters: [{ name: 'LocalMind Backup', extensions: ['zip'] }],
+      })
+    : await dialog.showSaveDialog({
+        title: '导出知识库备份',
+        defaultPath,
+        filters: [{ name: 'LocalMind Backup', extensions: ['zip'] }],
+      });
+
+  if (result.canceled || !result.filePath) {
+    return '';
+  }
+
+  const zip = new AdmZip();
+  zip.addLocalFolder(knowledgeBase.folderPath, 'knowledge-base');
+  zip.addFile('manifest.json', Buffer.from(JSON.stringify(createArchiveManifest(knowledgeBase), null, 2), 'utf8'));
+  zip.writeZip(result.filePath);
+
+  return result.filePath;
+});
+
+ipcMain.handle('kb:import-archive', async (): Promise<KnowledgeBase | null> => {
+  const store = await ensureStore();
+  const dialogOptions: OpenDialogOptions = {
+    title: '导入知识库备份',
+    properties: ['openFile'],
+    filters: [{ name: 'LocalMind Backup', extensions: ['zip'] }],
+  };
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+
+  const zip = new AdmZip(result.filePaths[0]);
+  const manifestEntry = zip.getEntry('manifest.json');
+
+  if (!manifestEntry) {
+    throw new Error('这个备份包不是 LocalMind 知识库备份');
+  }
+
+  const unsafeEntry = zip.getEntries().find((entry) => {
+    const entryName = entry.entryName.replace(/\\/g, '/');
+    return entryName.includes('../') || path.isAbsolute(entryName);
+  });
+
+  if (unsafeEntry) {
+    throw new Error('备份包包含不安全路径，已拒绝导入');
+  }
+
+  const manifest = JSON.parse(manifestEntry.getData().toString('utf8')) as KnowledgeBaseArchiveManifest;
+
+  if (manifest.format !== KNOWLEDGE_ARCHIVE_FORMAT || manifest.version !== KNOWLEDGE_ARCHIVE_VERSION) {
+    throw new Error('备份包版本不兼容');
+  }
+
+  const id = randomUUID();
+  const name = `${manifest.knowledgeBase.name || '导入的知识库'}（导入）`;
+  const folderName = `${sanitizeFolderName(name)}-${id.slice(0, 8)}`;
+  const folderPath = path.join(getKnowledgeBaseRoot(), folderName);
+  const tempPath = path.join(APP_DATA_DIR, 'imports', id);
+
+  await fs.rm(tempPath, { recursive: true, force: true }).catch(() => {});
+  await fs.mkdir(tempPath, { recursive: true });
+
+  try {
+    zip.extractAllTo(tempPath, true);
+    await fs.rename(path.join(tempPath, 'knowledge-base'), folderPath);
+
+    const files = await Promise.all(
+      manifest.knowledgeBase.files.map(async (file) => {
+        const restoredFile: KnowledgeFile = {
+          ...file,
+          knowledgeBaseId: id,
+          originalPath: getRestoredArchivePath(folderPath, file.storedPath) ?? path.join(folderPath, 'files', file.name),
+          storedPath: getRestoredArchivePath(folderPath, file.storedPath) ?? path.join(folderPath, 'files', file.name),
+          parsedPath: getRestoredArchivePath(folderPath, file.parsedPath),
+          chunksPath: getRestoredArchivePath(folderPath, file.chunksPath),
+          embeddingsPath: getRestoredArchivePath(folderPath, file.embeddingsPath),
+        };
+
+        await rewriteJsonArray<KnowledgeChunk>(restoredFile.chunksPath, id);
+        await rewriteJsonArray<KnowledgeEmbedding>(restoredFile.embeddingsPath, id);
+
+        return restoredFile;
+      }),
+    );
+
+    const knowledgeBase: KnowledgeBase = {
+      id,
+      name,
+      folderPath,
+      createdAt: new Date().toISOString(),
+      files,
+    };
+
+    store.knowledgeBases.unshift(knowledgeBase);
+    await saveStore(store);
+    return knowledgeBase;
+  } finally {
+    await fs.rm(tempPath, { recursive: true, force: true }).catch(() => {});
+  }
 });
 
 ipcMain.handle('kb:generate-embeddings', async (_event, knowledgeBaseId: string, model: string): Promise<KnowledgeBase> => {

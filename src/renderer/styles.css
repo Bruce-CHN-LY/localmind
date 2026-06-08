@@ -321,9 +321,27 @@ select {
 }
 
 .kb-create button:disabled,
+.kb-archive-button:disabled,
 .import-button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.kb-archive-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 34px;
+  margin: -2px 0 12px;
+  color: #3d5a4b;
+  background: #eef8f2;
+  border: 1px solid #a9c9b8;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .kb-list,
@@ -564,6 +582,12 @@ select {
   color: #3b352f;
   background: #f9f4ec;
   border: 1px solid #dacdbc;
+}
+
+.archive-button {
+  color: #3d5a4b;
+  background: #eef8f2;
+  border: 1px solid #a9c9b8;
 }
 
 .import-button svg {

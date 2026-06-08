@@ -3,6 +3,7 @@ import {
   Bot,
   CheckCircle2,
   Database,
+  Download,
   FileText,
   FolderOpen,
   FolderPlus,
@@ -14,6 +15,7 @@ import {
   Settings,
   Square,
   Trash2,
+  Upload,
   WifiOff,
 } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
@@ -79,6 +81,8 @@ function App() {
   const [activeChatRequestId, setActiveChatRequestId] = useState('');
   const [isCreatingKnowledgeBase, setIsCreatingKnowledgeBase] = useState(false);
   const [isImportingFiles, setIsImportingFiles] = useState(false);
+  const [isImportingArchive, setIsImportingArchive] = useState(false);
+  const [isExportingArchive, setIsExportingArchive] = useState(false);
   const [isGeneratingIndex, setIsGeneratingIndex] = useState(false);
   const [busyFileId, setBusyFileId] = useState('');
   const [isSearchingKnowledgeBase, setIsSearchingKnowledgeBase] = useState(false);
@@ -262,6 +266,46 @@ function App() {
       setNotice(error instanceof Error ? error.message : '导入文件失败');
     } finally {
       setIsImportingFiles(false);
+    }
+  }
+
+  async function handleImportKnowledgeBaseArchive() {
+    if (isImportingArchive) return;
+
+    setIsImportingArchive(true);
+    setNotice('');
+
+    try {
+      const knowledgeBase = await window.localMind.importKnowledgeBaseArchive();
+
+      if (!knowledgeBase) return;
+
+      setKnowledgeBases((current) => [knowledgeBase, ...current]);
+      setSelectedKnowledgeBaseId(knowledgeBase.id);
+      setNotice(`已导入知识库备份：${knowledgeBase.name}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '导入知识库备份失败');
+    } finally {
+      setIsImportingArchive(false);
+    }
+  }
+
+  async function handleExportKnowledgeBaseArchive() {
+    if (!selectedKnowledgeBaseId || isExportingArchive) return;
+
+    setIsExportingArchive(true);
+    setNotice('');
+
+    try {
+      const exportPath = await window.localMind.exportKnowledgeBase(selectedKnowledgeBaseId);
+
+      if (exportPath) {
+        setNotice(`已导出知识库备份：${exportPath}`);
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '导出知识库备份失败');
+    } finally {
+      setIsExportingArchive(false);
     }
   }
 
@@ -676,6 +720,16 @@ function App() {
             </button>
           </form>
 
+          <button
+            className="kb-archive-button"
+            disabled={isImportingArchive}
+            onClick={handleImportKnowledgeBaseArchive}
+            type="button"
+          >
+            {isImportingArchive ? <Loader2 size={15} /> : <Upload size={15} />}
+            导入知识库备份
+          </button>
+
           <div className="kb-list">
             {knowledgeBases.length === 0 ? (
               <div className="empty-box">
@@ -799,6 +853,15 @@ function App() {
             <button className="import-button folder-button" onClick={handleOpenKnowledgeBaseFolder} type="button">
               <FolderOpen size={17} />
               打开文件夹
+            </button>
+            <button
+              className="import-button archive-button"
+              disabled={isExportingArchive}
+              onClick={handleExportKnowledgeBaseArchive}
+              type="button"
+            >
+              {isExportingArchive ? <Loader2 size={17} /> : <Download size={17} />}
+              {isExportingArchive ? '导出中' : '导出备份'}
             </button>
             <button
               className="import-button index-button"

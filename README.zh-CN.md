@@ -17,6 +17,8 @@ LocalMind 是一个本地优先的桌面知识库 AI 助手，用来把你自己
 - 自动切成适合检索的小片段
 - 使用 Ollama 生成 embedding 向量
 - 在本地做向量相似度检索
+- 根据命中片段进行知识库问答并显示引用来源
+- 导入、导出知识库备份包
 - 连接 Ollama 本地聊天模型
 - 连接 OpenAI-compatible 网络 API
 - 保存多个网络模型配置
@@ -63,11 +65,15 @@ LocalMind 是一个本地优先的桌面知识库 AI 助手，用来把你自己
 - 文件重新解析
 - 文件重新索引
 - 打开知识库本地文件夹
+- 知识库备份导入
+- 知识库备份导出
+- macOS 打包配置
 
 下一步会继续做：
 
-- 知识库导入导出
-- macOS 和 Windows 安装包
+- Windows 安装包
+- 更完善的发布流程
+- 更强的检索和重排能力
 
 ## 运行方式
 
@@ -88,6 +94,18 @@ npm run dev
 ```bash
 npm run typecheck
 npm run build
+```
+
+生成 macOS 本地应用：
+
+```bash
+npm run pack
+```
+
+生成 macOS 发布包：
+
+```bash
+npm run dist:mac
 ```
 
 如果 Electron 下载失败，可以使用镜像：
@@ -113,6 +131,8 @@ macOS 默认在：
 - embedding 向量
 - 加密后的模型配置
 - 运行日志
+
+你也可以在界面中把单个知识库导出为 `.localmind.zip` 备份包，再导入到另一台电脑或另一个 LocalMind 环境。
 
 这些内容不应该提交到 GitHub。
 
