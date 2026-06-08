@@ -193,10 +193,35 @@ The right-panel health check inspects missing files, failed parsing, missing ind
 
 ## Roadmap
 
-- Add import/export for knowledge bases
-- Add more model providers
+LocalMind will move in three stages: make the app easier to use, improve retrieval quality, then evolve toward graph-aware knowledge bases.
+
+### Near Term: Usability and Release Polish
+
+- Improve macOS release packaging, app icon, and installation notes
 - Add Windows packaging
-- Add tests for parsers and model adapters
+- Add progress indicators for import, parsing, and indexing
+- Add model connection tests before saving network API profiles
+- Add screenshots, short demos, and clearer onboarding docs
+
+### Mid Term: Better Knowledge-Base Q&A
+
+- Add hybrid retrieval: keyword search + vector search
+- Add reranking to reduce false-positive matches
+- Add folder batch import
+- Add OCR for images and scanned PDFs
+- Add support for more document formats
+- Add compatibility tests for knowledge-base import/export
+
+### Long Term: Graph-Aware Retrieval Inspired by codegraph
+
+- Extract entities, topics, terms, and citation relationships from documents
+- Build a lightweight local graph index for each knowledge base
+- Query the graph before retrieving chunks to reduce token waste
+- Add a knowledge graph view for files, topics, concepts, and chunks
+- Support codebase knowledge bases with files, functions, dependencies, and docs
+- Support graph-aware search for Markdown and Obsidian-style note vaults
+
+This direction is inspired by [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph), while LocalMind will stay focused on an integrated desktop experience for non-technical users.
 
 ## Contributing
 
