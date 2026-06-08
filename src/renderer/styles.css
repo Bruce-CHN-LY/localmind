@@ -715,6 +715,46 @@ select {
   border: 1px solid #e5c98e;
 }
 
+.knowledge-progress {
+  margin: 2px 0 14px;
+  padding: 12px;
+  background: #fffaf4;
+  border: 1px solid #dacdbc;
+  border-radius: 9px;
+}
+
+.knowledge-progress-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #3d5a4b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.knowledge-progress-bar {
+  height: 8px;
+  margin-top: 8px;
+  overflow: hidden;
+  background: #e4d8c8;
+  border-radius: 999px;
+}
+
+.knowledge-progress-bar span {
+  display: block;
+  height: 100%;
+  background: #3d5a4b;
+  border-radius: inherit;
+  transition: width 0.2s ease;
+}
+
+.knowledge-progress p {
+  margin: 8px 0 0;
+  color: #776f65;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .import-button svg {
   flex: 0 0 auto;
 }

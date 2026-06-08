@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ChatRequest, KnowledgeAnswerRequest, LocalMindApi, ModelSettings, NetworkModelConfig } from './types';
+import type {
+  ChatRequest,
+  KnowledgeAnswerRequest,
+  KnowledgeProgressEvent,
+  LocalMindApi,
+  ModelSettings,
+  NetworkModelConfig,
+} from './types';
 
 const api: LocalMindApi = {
   getOllamaStatus: () => ipcRenderer.invoke('ollama:status'),
@@ -27,6 +34,11 @@ const api: LocalMindApi = {
   searchKnowledgeBase: (knowledgeBaseId: string, query: string, model: string) =>
     ipcRenderer.invoke('kb:search', knowledgeBaseId, query, model),
   askKnowledgeBase: (request: KnowledgeAnswerRequest) => ipcRenderer.invoke('kb:ask', request),
+  onKnowledgeProgress: (callback: (event: KnowledgeProgressEvent) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: KnowledgeProgressEvent) => callback(progress);
+    ipcRenderer.on('kb:progress', listener);
+    return () => ipcRenderer.removeListener('kb:progress', listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('localMind', api);

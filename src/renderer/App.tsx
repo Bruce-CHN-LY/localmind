@@ -25,6 +25,7 @@ import type {
   ChatMessage,
   KnowledgeBase,
   KnowledgeHealthReport,
+  KnowledgeProgressEvent,
   ModelProvider,
   OllamaModel,
   OllamaStatus,
@@ -152,6 +153,7 @@ function App() {
   const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
   const [knowledgeSearchResults, setKnowledgeSearchResults] = useState<SearchResult[]>([]);
   const [healthReport, setHealthReport] = useState<KnowledgeHealthReport | null>(null);
+  const [knowledgeProgress, setKnowledgeProgress] = useState<KnowledgeProgressEvent | null>(null);
   const [notice, setNotice] = useState('');
   const [networkTestMessage, setNetworkTestMessage] = useState('');
   const [isNetworkTestOk, setIsNetworkTestOk] = useState(false);
@@ -177,6 +179,11 @@ function App() {
     [knowledgeBases, selectedKnowledgeBaseId],
   );
   const selectedKnowledgeBaseHasIndex = Boolean(selectedKnowledgeBase?.files.some((file) => file.vectorCount));
+  const visibleKnowledgeProgress =
+    knowledgeProgress && knowledgeProgress.knowledgeBaseId === selectedKnowledgeBaseId ? knowledgeProgress : null;
+  const knowledgeProgressPercent = visibleKnowledgeProgress
+    ? Math.round((visibleKnowledgeProgress.current / Math.max(visibleKnowledgeProgress.total, 1)) * 100)
+    : 0;
 
   async function refreshKnowledgeBases() {
     const nextKnowledgeBases = await window.localMind.listKnowledgeBases();
@@ -238,6 +245,29 @@ function App() {
     if (localStorage.getItem(ONBOARDING_STORAGE_KEY) !== 'true') {
       setIsOnboardingOpen(true);
     }
+  }, []);
+
+  useEffect(() => {
+    let clearTimer: number | undefined;
+    const unsubscribe = window.localMind.onKnowledgeProgress((progress) => {
+      setKnowledgeProgress(progress);
+
+      if (clearTimer) {
+        window.clearTimeout(clearTimer);
+      }
+
+      if (progress.done) {
+        clearTimer = window.setTimeout(() => setKnowledgeProgress(null), 3200);
+      }
+    });
+
+    return () => {
+      if (clearTimer) {
+        window.clearTimeout(clearTimer);
+      }
+
+      unsubscribe();
+    };
   }, []);
 
   function handleDismissOnboarding() {
@@ -1090,7 +1120,7 @@ function App() {
               type="button"
             >
               {isImportingFiles ? <Loader2 size={17} /> : <Import size={17} />}
-              导入文件
+              导入文件/文件夹
             </button>
             <button className="import-button folder-button" onClick={handleOpenKnowledgeBaseFolder} type="button">
               <FolderOpen size={17} />
@@ -1123,6 +1153,22 @@ function App() {
               {isGeneratingIndex ? <Loader2 size={17} /> : <Database size={17} />}
               {isGeneratingIndex ? '生成中' : '生成索引'}
             </button>
+
+            {visibleKnowledgeProgress ? (
+              <section className="knowledge-progress">
+                <div className="knowledge-progress-title">
+                  <strong>{visibleKnowledgeProgress.operation === 'import' ? '导入进度' : '索引进度'}</strong>
+                  <span>{knowledgeProgressPercent}%</span>
+                </div>
+                <div className="knowledge-progress-bar">
+                  <span style={{ width: `${knowledgeProgressPercent}%` }} />
+                </div>
+                <p>
+                  {visibleKnowledgeProgress.message} · {visibleKnowledgeProgress.current}/
+                  {visibleKnowledgeProgress.total}
+                </p>
+              </section>
+            ) : null}
 
             {healthReport ? (
               <section className="health-report">

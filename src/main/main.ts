@@ -15,6 +15,7 @@ import type {
   KnowledgeFile,
   KnowledgeHealthCheck,
   KnowledgeHealthReport,
+  KnowledgeProgressEvent,
   ModelProvider,
   ModelSettings,
   NetworkModelConfig,
@@ -28,6 +29,7 @@ const APP_DATA_DIR = path.join(app.getPath('appData'), 'LocalMind');
 const KNOWLEDGE_ARCHIVE_FORMAT = 'localmind-knowledge-base';
 const KNOWLEDGE_ARCHIVE_VERSION = 1;
 const KNOWLEDGE_BASE_DIRECTORIES = ['raw', 'notes', 'assets', 'texts', 'chunks', 'embeddings'];
+const SUPPORTED_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.docx', '.md', '.markdown', '.txt']);
 
 app.setName('LocalMind');
 app.setPath('userData', APP_DATA_DIR);
@@ -178,6 +180,43 @@ function sanitizeFolderName(name: string) {
     .replace(/[^\p{L}\p{N}\s_-]/gu, '')
     .replace(/\s+/g, '-')
     .slice(0, 64) || 'knowledge-base';
+}
+
+function emitKnowledgeProgress(progress: KnowledgeProgressEvent) {
+  mainWindow?.webContents.send('kb:progress', progress);
+}
+
+function isSupportedDocumentPath(filePath: string) {
+  return SUPPORTED_DOCUMENT_EXTENSIONS.has(path.extname(filePath).toLowerCase());
+}
+
+async function collectSupportedDocumentPaths(selectedPaths: string[]) {
+  const collectedPaths: string[] = [];
+
+  async function collect(currentPath: string) {
+    const stats = await fs.stat(currentPath);
+
+    if (stats.isDirectory()) {
+      const entries = await fs.readdir(currentPath);
+
+      for (const entry of entries) {
+        if (entry.startsWith('.')) continue;
+        await collect(path.join(currentPath, entry));
+      }
+
+      return;
+    }
+
+    if (stats.isFile() && isSupportedDocumentPath(currentPath)) {
+      collectedPaths.push(currentPath);
+    }
+  }
+
+  for (const selectedPath of selectedPaths) {
+    await collect(selectedPath);
+  }
+
+  return [...new Set(collectedPaths)];
 }
 
 async function ensureStore(): Promise<LocalMindStore> {
@@ -987,8 +1026,8 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
   }
 
   const dialogOptions: OpenDialogOptions = {
-    title: '导入资料到知识库',
-    properties: ['openFile', 'multiSelections'],
+    title: '导入资料或文件夹到知识库',
+    properties: ['openFile', 'openDirectory', 'multiSelections'],
     filters: [
       { name: 'Supported Documents', extensions: ['pdf', 'docx', 'md', 'markdown', 'txt'] },
       { name: 'All Files', extensions: ['*'] },
@@ -1004,8 +1043,29 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
   }
 
   await ensureKnowledgeBaseScaffold(knowledgeBase);
+  const importPaths = await collectSupportedDocumentPaths(result.filePaths);
 
-  for (const originalPath of result.filePaths) {
+  if (importPaths.length === 0) {
+    throw new Error('没有找到支持的文件。当前支持 PDF、Word、Markdown 和 TXT。');
+  }
+
+  emitKnowledgeProgress({
+    operation: 'import',
+    knowledgeBaseId,
+    current: 0,
+    total: importPaths.length,
+    message: `准备导入 ${importPaths.length} 个文件`,
+  });
+
+  for (const [index, originalPath] of importPaths.entries()) {
+    emitKnowledgeProgress({
+      operation: 'import',
+      knowledgeBaseId,
+      current: index,
+      total: importPaths.length,
+      message: `正在导入并解析：${path.basename(originalPath)}`,
+    });
+
     const stats = await fs.stat(originalPath);
     let storedPath = getUniqueStoredPath(knowledgeBase.folderPath, path.basename(originalPath), 0);
     let copyIndex = 0;
@@ -1036,10 +1096,26 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
     knowledgeBase.files.unshift(file);
     await parseKnowledgeFile(knowledgeBase, file);
     await appendKnowledgeLog(knowledgeBase, `导入文件：${file.name}`);
+
+    emitKnowledgeProgress({
+      operation: 'import',
+      knowledgeBaseId,
+      current: index + 1,
+      total: importPaths.length,
+      message: `已完成：${file.name}`,
+    });
   }
 
   await writeKnowledgeBaseIndex(knowledgeBase);
   await saveStore(store);
+  emitKnowledgeProgress({
+    operation: 'import',
+    knowledgeBaseId,
+    current: importPaths.length,
+    total: importPaths.length,
+    message: `导入完成：${importPaths.length} 个文件`,
+    done: true,
+  });
   return knowledgeBase;
 });
 
@@ -1175,13 +1251,45 @@ ipcMain.handle('kb:generate-embeddings', async (_event, knowledgeBaseId: string,
     throw new Error('这个知识库还没有可索引的已解析文件');
   }
 
-  for (const file of parsedFiles) {
+  emitKnowledgeProgress({
+    operation: 'index',
+    knowledgeBaseId,
+    current: 0,
+    total: parsedFiles.length,
+    message: `准备生成 ${parsedFiles.length} 个文件的索引`,
+  });
+
+  for (const [index, file] of parsedFiles.entries()) {
+    emitKnowledgeProgress({
+      operation: 'index',
+      knowledgeBaseId,
+      current: index,
+      total: parsedFiles.length,
+      message: `正在生成索引：${file.name}`,
+    });
+
     await generateFileEmbeddings(knowledgeBase, file, model.trim());
+
+    emitKnowledgeProgress({
+      operation: 'index',
+      knowledgeBaseId,
+      current: index + 1,
+      total: parsedFiles.length,
+      message: `已完成索引：${file.name}`,
+    });
   }
 
   await appendKnowledgeLog(knowledgeBase, `生成知识库索引：${model.trim()}`);
   await writeKnowledgeBaseIndex(knowledgeBase);
   await saveStore(store);
+  emitKnowledgeProgress({
+    operation: 'index',
+    knowledgeBaseId,
+    current: parsedFiles.length,
+    total: parsedFiles.length,
+    message: `索引生成完成：${parsedFiles.length} 个文件`,
+    done: true,
+  });
   return knowledgeBase;
 });
 

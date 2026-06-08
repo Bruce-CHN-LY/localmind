@@ -109,6 +109,15 @@ export type KnowledgeHealthReport = {
   checks: KnowledgeHealthCheck[];
 };
 
+export type KnowledgeProgressEvent = {
+  operation: 'import' | 'index';
+  knowledgeBaseId: string;
+  current: number;
+  total: number;
+  message: string;
+  done?: boolean;
+};
+
 export type KnowledgeBase = {
   id: string;
   name: string;
@@ -138,6 +147,7 @@ export type LocalMindApi = {
   openKnowledgeBaseFolder: (knowledgeBaseId: string) => Promise<boolean>;
   searchKnowledgeBase: (knowledgeBaseId: string, query: string, model: string) => Promise<SearchResult[]>;
   askKnowledgeBase: (request: KnowledgeAnswerRequest) => Promise<KnowledgeAnswer>;
+  onKnowledgeProgress: (callback: (event: KnowledgeProgressEvent) => void) => () => void;
 };
 
 declare global {
