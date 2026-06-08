@@ -22,8 +22,10 @@ LocalMind 是一个本地优先的桌面知识库 AI 助手，用来把你自己
 - 连接 Ollama 本地聊天模型
 - 连接 OpenAI-compatible 网络 API
 - 保存多个网络模型配置
+- 提供 DeepSeek、OpenAI、OpenRouter、硅基流动、阿里百炼等网络模型预设
 - 使用 Electron `safeStorage` 加密保存 API Key
 - 生成过程中可以点击停止
+- 首次打开提供使用向导
 
 ## 为什么做这个项目
 
@@ -52,6 +54,8 @@ LocalMind 是一个本地优先的桌面知识库 AI 助手，用来把你自己
 - 本地模型聊天
 - 网络 API 聊天
 - 多网络模型配置
+- 常用网络模型服务商预设
+- 首次使用向导
 - 停止生成按钮
 - 知识库创建
 - 文件导入

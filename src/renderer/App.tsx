@@ -13,6 +13,7 @@ import {
   Search,
   Send,
   Settings,
+  Sparkles,
   Square,
   Trash2,
   Upload,
@@ -27,6 +28,54 @@ type UiMessage = ChatMessage & {
   id: string;
   citations?: SearchResult[];
 };
+
+type NetworkProviderPreset = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  model: string;
+  note: string;
+};
+
+const NETWORK_PROVIDER_PRESETS: NetworkProviderPreset[] = [
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com',
+    model: 'deepseek-chat',
+    note: '性价比高，适合中文知识库问答。',
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    baseUrl: 'https://api.openai.com',
+    model: 'gpt-4o-mini',
+    note: '通用能力强，适合英文和复杂任务。',
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api',
+    model: 'openai/gpt-4o-mini',
+    note: '可通过一个入口选择多家模型。',
+  },
+  {
+    id: 'siliconflow',
+    name: '硅基流动',
+    baseUrl: 'https://api.siliconflow.cn',
+    model: 'deepseek-ai/DeepSeek-V3',
+    note: '国内常用 OpenAI-compatible 服务。',
+  },
+  {
+    id: 'dashscope',
+    name: '阿里百炼',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode',
+    model: 'qwen-plus',
+    note: '适合通义千问系列模型。',
+  },
+];
+
+const ONBOARDING_STORAGE_KEY = 'localmind:onboarding-dismissed';
 
 function formatModelSize(size?: number) {
   if (!size) return '';
@@ -92,6 +141,7 @@ function App() {
   const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
   const [knowledgeSearchResults, setKnowledgeSearchResults] = useState<SearchResult[]>([]);
   const [notice, setNotice] = useState('');
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   const selectedNetworkModel = useMemo(
     () => networkModels.find((model) => model.id === selectedNetworkModelId) ?? null,
@@ -170,7 +220,32 @@ function App() {
     refreshOllama();
     refreshKnowledgeBases();
     loadModelSettings();
+
+    if (localStorage.getItem(ONBOARDING_STORAGE_KEY) !== 'true') {
+      setIsOnboardingOpen(true);
+    }
   }, []);
+
+  function handleDismissOnboarding() {
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, 'true');
+    setIsOnboardingOpen(false);
+  }
+
+  function handleUseNetworkFromOnboarding() {
+    setModelProvider('network');
+    setIsNetworkSettingsOpen(true);
+    handleDismissOnboarding();
+  }
+
+  function handleApplyNetworkPreset(presetId: string) {
+    const preset = NETWORK_PROVIDER_PRESETS.find((item) => item.id === presetId);
+
+    if (!preset) return;
+
+    setNetworkName(preset.name);
+    setNetworkBaseUrl(preset.baseUrl);
+    setNetworkModel(preset.model);
+  }
 
   async function handleSaveModelSettings() {
     setIsSavingModelSettings(true);
@@ -598,6 +673,22 @@ function App() {
               ) : (
                 <>
                   <label>
+                    服务商模板
+                    <select
+                      value=""
+                      onChange={(event) => handleApplyNetworkPreset(event.target.value)}
+                    >
+                      <option value="" disabled>
+                        选择后自动填写地址和模型
+                      </option>
+                      {NETWORK_PROVIDER_PRESETS.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.name} · {preset.model}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
                     显示名称
                     <input
                       value={networkName}
@@ -630,6 +721,9 @@ function App() {
                       type="password"
                     />
                   </label>
+                  <p className="hint">
+                    模板只会帮你填写地址和模型名，API Key 仍然加密保存在本机。
+                  </p>
                   <div className="network-actions">
                     <button
                       className="save-settings-button"
@@ -758,6 +852,50 @@ function App() {
           设置
         </button>
       </aside>
+
+      {isOnboardingOpen ? (
+        <div className="onboarding-backdrop" role="dialog" aria-modal="true" aria-label="首次使用向导">
+          <section className="onboarding-card">
+            <div className="onboarding-heading">
+              <div className="brand-mark">
+                <Sparkles size={22} />
+              </div>
+              <div>
+                <h2>欢迎使用 LocalMind</h2>
+                <p>按这 4 步走，很快就能让本地资料开始回答问题。</p>
+              </div>
+            </div>
+
+            <div className="onboarding-steps">
+              <article>
+                <strong>1. 选择模型来源</strong>
+                <span>本地 Ollama 更私密；网络 API 更省电脑内存。</span>
+              </article>
+              <article>
+                <strong>2. 选择 Embedding 模型</strong>
+                <span>推荐先用 Ollama 的 nomic-embed-text 来生成知识库索引。</span>
+              </article>
+              <article>
+                <strong>3. 创建知识库并导入资料</strong>
+                <span>每个知识库都有独立文件夹，支持 PDF、Word、Markdown、TXT。</span>
+              </article>
+              <article>
+                <strong>4. 点击生成索引</strong>
+                <span>之后提问时，只会检索相关片段，不会整库塞给模型。</span>
+              </article>
+            </div>
+
+            <div className="onboarding-actions">
+              <button className="secondary" onClick={handleUseNetworkFromOnboarding} type="button">
+                使用网络 API
+              </button>
+              <button onClick={handleDismissOnboarding} type="button">
+                开始使用
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       <section className="chat-area">
         <header className="chat-header">

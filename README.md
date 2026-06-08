@@ -18,6 +18,8 @@ It supports local Ollama models and OpenAI-compatible network APIs, so users can
 - Connects to Ollama local models
 - Connects to OpenAI-compatible network APIs
 - Saves network API keys locally with Electron `safeStorage`
+- Includes presets for DeepSeek, OpenAI, OpenRouter, SiliconFlow, and DashScope-compatible APIs
+- Shows a first-run onboarding guide
 - Stops long-running model generation
 - Keeps user files and parsed text out of the source repository
 
@@ -40,6 +42,8 @@ This is an early-stage desktop app. The current version already includes:
 - Local model chat
 - OpenAI-compatible network API chat
 - Multiple saved network model profiles
+- Common network provider presets
+- First-run onboarding guide
 - Stop generation button
 - Knowledge base creation
 - Local file import
