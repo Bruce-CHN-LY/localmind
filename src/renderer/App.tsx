@@ -289,9 +289,77 @@ function App() {
   }
 
   function handleUseNetworkFromOnboarding() {
-    setModelProvider('network');
+    handleSwitchModelProvider('network');
     setIsNetworkSettingsOpen(true);
     handleDismissOnboarding();
+  }
+
+  async function handleSwitchModelProvider(provider: ModelProvider) {
+    setModelProvider(provider);
+    setNotice('');
+
+    if (provider === 'network') {
+      const nextNetworkModel = selectedNetworkModel ?? networkModels.find((model) => model.apiKey.trim()) ?? networkModels[0];
+
+      if (!nextNetworkModel) {
+        setIsNetworkSettingsOpen(true);
+        return;
+      }
+
+      setSelectedNetworkModelId(nextNetworkModel.id);
+      setNetworkName(nextNetworkModel.name);
+      setNetworkBaseUrl(nextNetworkModel.baseUrl);
+      setNetworkModel(nextNetworkModel.model);
+      setNetworkApiKey(nextNetworkModel.apiKey);
+      setIsNetworkSettingsOpen(!nextNetworkModel.apiKey.trim());
+
+      if (!nextNetworkModel.apiKey.trim()) {
+        setNotice('这个网络模型还没有 API Key，填好后就能使用。');
+      }
+
+      await saveModelSelection(provider, nextNetworkModel.id, networkModels);
+      return;
+    }
+
+    await saveModelSelection(provider, selectedNetworkModelId, networkModels);
+  }
+
+  async function handleSelectNetworkModel(modelId: string) {
+    const nextNetworkModel = networkModels.find((model) => model.id === modelId);
+
+    setModelProvider('network');
+    setSelectedNetworkModelId(modelId);
+    setNotice('');
+
+    if (nextNetworkModel) {
+      setNetworkName(nextNetworkModel.name);
+      setNetworkBaseUrl(nextNetworkModel.baseUrl);
+      setNetworkModel(nextNetworkModel.model);
+      setNetworkApiKey(nextNetworkModel.apiKey);
+      setIsNetworkSettingsOpen(!nextNetworkModel.apiKey.trim());
+
+      if (!nextNetworkModel.apiKey.trim()) {
+        setNotice('这个网络模型还没有 API Key，填好后就能使用。');
+      }
+    }
+
+    await saveModelSelection('network', modelId, networkModels);
+  }
+
+  async function saveModelSelection(provider: ModelProvider, selectedModelId: string, nextNetworkModels: NetworkModelConfig[]) {
+    try {
+      const settings = await window.localMind.saveModelSettings({
+        provider,
+        selectedNetworkModelId: selectedModelId,
+        networkModels: nextNetworkModels,
+      });
+
+      setModelProvider(settings.provider);
+      setNetworkModels(settings.networkModels);
+      setSelectedNetworkModelId(settings.selectedNetworkModelId);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '保存模型切换失败');
+    }
   }
 
   function handleApplyNetworkPreset(presetId: string) {
@@ -355,7 +423,7 @@ function App() {
         ? networkModels.map((model) => (model.id === modelId ? nextNetworkModel : model))
         : [...networkModels, nextNetworkModel];
       const settings = await window.localMind.saveModelSettings({
-        provider: modelProvider,
+        provider: 'network',
         selectedNetworkModelId: modelId,
         networkModels: nextNetworkModels,
       });
@@ -735,14 +803,14 @@ function App() {
           <div className="provider-toggle">
             <button
               className={modelProvider === 'ollama' ? 'active' : ''}
-              onClick={() => setModelProvider('ollama')}
+              onClick={() => handleSwitchModelProvider('ollama')}
               type="button"
             >
               本地
             </button>
             <button
               className={modelProvider === 'network' ? 'active' : ''}
-              onClick={() => setModelProvider('network')}
+              onClick={() => handleSwitchModelProvider('network')}
               type="button"
             >
               网络 API
@@ -765,7 +833,7 @@ function App() {
                     选择模型
                     <select
                       value={selectedNetworkModelId}
-                      onChange={(event) => setSelectedNetworkModelId(event.target.value)}
+                      onChange={(event) => handleSelectNetworkModel(event.target.value)}
                     >
                       {networkModels.map((model) => (
                         <option key={model.id} value={model.id}>
