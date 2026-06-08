@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   Bot,
   CheckCircle2,
   Database,
@@ -20,7 +21,15 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
-import type { ChatMessage, KnowledgeBase, ModelProvider, OllamaModel, OllamaStatus, SearchResult } from '../preload/types';
+import type {
+  ChatMessage,
+  KnowledgeBase,
+  KnowledgeHealthReport,
+  ModelProvider,
+  OllamaModel,
+  OllamaStatus,
+  SearchResult,
+} from '../preload/types';
 import type { NetworkModelConfig } from '../preload/types';
 import './styles.css';
 
@@ -133,6 +142,7 @@ function App() {
   const [isImportingArchive, setIsImportingArchive] = useState(false);
   const [isExportingArchive, setIsExportingArchive] = useState(false);
   const [isGeneratingIndex, setIsGeneratingIndex] = useState(false);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [busyFileId, setBusyFileId] = useState('');
   const [isSearchingKnowledgeBase, setIsSearchingKnowledgeBase] = useState(false);
   const [isSavingModelSettings, setIsSavingModelSettings] = useState(false);
@@ -140,6 +150,7 @@ function App() {
   const [editingNetworkModelId, setEditingNetworkModelId] = useState('');
   const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
   const [knowledgeSearchResults, setKnowledgeSearchResults] = useState<SearchResult[]>([]);
+  const [healthReport, setHealthReport] = useState<KnowledgeHealthReport | null>(null);
   const [notice, setNotice] = useState('');
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
@@ -407,6 +418,21 @@ function App() {
     }
   }
 
+  async function handleCheckKnowledgeBaseHealth() {
+    if (!selectedKnowledgeBaseId || isCheckingHealth) return;
+
+    setIsCheckingHealth(true);
+    setNotice('');
+
+    try {
+      setHealthReport(await window.localMind.checkKnowledgeBaseHealth(selectedKnowledgeBaseId));
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '知识库体检失败');
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  }
+
   function replaceKnowledgeBase(updatedKnowledgeBase: KnowledgeBase) {
     setKnowledgeBases((current) =>
       current.map((knowledgeBase) =>
@@ -425,6 +451,11 @@ function App() {
     }
   }
 
+  function clearKnowledgeBaseDerivedViews() {
+    setKnowledgeSearchResults([]);
+    setHealthReport(null);
+  }
+
   async function handleReparseFile(fileId: string) {
     if (!selectedKnowledgeBaseId || busyFileId) return;
 
@@ -433,7 +464,7 @@ function App() {
 
     try {
       replaceKnowledgeBase(await window.localMind.reparseKnowledgeFile(selectedKnowledgeBaseId, fileId));
-      setKnowledgeSearchResults([]);
+      clearKnowledgeBaseDerivedViews();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '重新解析失败');
     } finally {
@@ -451,7 +482,7 @@ function App() {
       replaceKnowledgeBase(
         await window.localMind.reindexKnowledgeFile(selectedKnowledgeBaseId, fileId, selectedEmbeddingModel),
       );
-      setKnowledgeSearchResults([]);
+      clearKnowledgeBaseDerivedViews();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '重新索引失败');
     } finally {
@@ -467,7 +498,7 @@ function App() {
 
     try {
       replaceKnowledgeBase(await window.localMind.deleteKnowledgeFile(selectedKnowledgeBaseId, fileId));
-      setKnowledgeSearchResults([]);
+      clearKnowledgeBaseDerivedViews();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '删除文件失败');
     } finally {
@@ -835,7 +866,10 @@ function App() {
                 <button
                   className={`kb-item ${knowledgeBase.id === selectedKnowledgeBaseId ? 'active' : ''}`}
                   key={knowledgeBase.id}
-                  onClick={() => setSelectedKnowledgeBaseId(knowledgeBase.id)}
+                  onClick={() => {
+                    setSelectedKnowledgeBaseId(knowledgeBase.id);
+                    clearKnowledgeBaseDerivedViews();
+                  }}
                   type="button"
                 >
                   <Database size={16} />
@@ -993,6 +1027,15 @@ function App() {
               打开文件夹
             </button>
             <button
+              className="import-button health-button"
+              disabled={isCheckingHealth}
+              onClick={handleCheckKnowledgeBaseHealth}
+              type="button"
+            >
+              {isCheckingHealth ? <Loader2 size={17} /> : <AlertTriangle size={17} />}
+              {isCheckingHealth ? '体检中' : '体检知识库'}
+            </button>
+            <button
               className="import-button archive-button"
               disabled={isExportingArchive}
               onClick={handleExportKnowledgeBaseArchive}
@@ -1010,6 +1053,23 @@ function App() {
               {isGeneratingIndex ? <Loader2 size={17} /> : <Database size={17} />}
               {isGeneratingIndex ? '生成中' : '生成索引'}
             </button>
+
+            {healthReport ? (
+              <section className="health-report">
+                <div className="health-score">
+                  <strong>{healthReport.score}</strong>
+                  <span>{healthReport.summary}</span>
+                </div>
+                <div className="health-checks">
+                  {healthReport.checks.slice(0, 8).map((check, index) => (
+                    <article className={`health-check ${check.status}`} key={`${check.title}-${index}`}>
+                      <strong>{check.title}</strong>
+                      <span>{check.detail}</span>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             <div className="file-list">
               {selectedKnowledgeBase.files.length === 0 ? (

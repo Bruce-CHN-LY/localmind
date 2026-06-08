@@ -13,6 +13,7 @@ const api: LocalMindApi = {
   importKnowledgeFiles: (knowledgeBaseId: string) => ipcRenderer.invoke('kb:import-files', knowledgeBaseId),
   exportKnowledgeBase: (knowledgeBaseId: string) => ipcRenderer.invoke('kb:export', knowledgeBaseId),
   importKnowledgeBaseArchive: () => ipcRenderer.invoke('kb:import-archive'),
+  checkKnowledgeBaseHealth: (knowledgeBaseId: string) => ipcRenderer.invoke('kb:health', knowledgeBaseId),
   generateKnowledgeBaseEmbeddings: (knowledgeBaseId: string, model: string) =>
     ipcRenderer.invoke('kb:generate-embeddings', knowledgeBaseId, model),
   reparseKnowledgeFile: (knowledgeBaseId: string, fileId: string) =>

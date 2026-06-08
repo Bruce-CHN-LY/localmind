@@ -90,6 +90,20 @@ export type KnowledgeAnswer = {
   citations: SearchResult[];
 };
 
+export type KnowledgeHealthCheck = {
+  status: 'ok' | 'warning' | 'error';
+  title: string;
+  detail: string;
+};
+
+export type KnowledgeHealthReport = {
+  knowledgeBaseId: string;
+  checkedAt: string;
+  score: number;
+  summary: string;
+  checks: KnowledgeHealthCheck[];
+};
+
 export type KnowledgeBase = {
   id: string;
   name: string;
@@ -110,6 +124,7 @@ export type LocalMindApi = {
   importKnowledgeFiles: (knowledgeBaseId: string) => Promise<KnowledgeBase>;
   exportKnowledgeBase: (knowledgeBaseId: string) => Promise<string>;
   importKnowledgeBaseArchive: () => Promise<KnowledgeBase | null>;
+  checkKnowledgeBaseHealth: (knowledgeBaseId: string) => Promise<KnowledgeHealthReport>;
   generateKnowledgeBaseEmbeddings: (knowledgeBaseId: string, model: string) => Promise<KnowledgeBase>;
   reparseKnowledgeFile: (knowledgeBaseId: string, fileId: string) => Promise<KnowledgeBase>;
   reindexKnowledgeFile: (knowledgeBaseId: string, fileId: string, model: string) => Promise<KnowledgeBase>;

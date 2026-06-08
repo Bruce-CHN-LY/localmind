@@ -686,6 +686,12 @@ select {
   border: 1px solid #a9c9b8;
 }
 
+.health-button {
+  color: #715029;
+  background: #fff6df;
+  border: 1px solid #e5c98e;
+}
+
 .import-button svg {
   flex: 0 0 auto;
 }
@@ -706,6 +712,77 @@ select {
   background: #f9f4ec;
   border: 1px solid #ddd0bd;
   border-radius: 8px;
+}
+
+.health-report {
+  margin: 2px 0 14px;
+  padding: 12px;
+  background: #fffaf4;
+  border: 1px solid #dacdbc;
+  border-radius: 9px;
+}
+
+.health-score {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.health-score strong {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  color: #fff;
+  background: #3d5a4b;
+  border-radius: 50%;
+  font-size: 20px;
+}
+
+.health-score span {
+  color: #514a42;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.health-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.health-check {
+  padding: 9px;
+  background: #eef8f2;
+  border: 1px solid #a9c9b8;
+  border-radius: 7px;
+}
+
+.health-check.warning {
+  background: #fff6df;
+  border-color: #e5c98e;
+}
+
+.health-check.error {
+  background: #fff0ec;
+  border-color: #e2b9ad;
+}
+
+.health-check strong {
+  display: block;
+  color: #3b352f;
+  font-size: 12px;
+}
+
+.health-check span {
+  display: block;
+  margin-top: 4px;
+  color: #776f65;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .file-item.parsed {

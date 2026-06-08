@@ -10,11 +10,14 @@ It supports local Ollama models and OpenAI-compatible network APIs, so users can
 
 - Creates multiple local knowledge bases
 - Creates a dedicated folder for each knowledge base
+- Maintains `raw/`, `notes/`, `assets/`, `index.md`, `log.md`, and `AI_CONFIG.md`
 - Imports PDF, Word, Markdown, and TXT files
 - Extracts document text into local `texts` folders
 - Generates local text chunks and Ollama embeddings
 - Runs local vector search and citation-backed Q&A
 - Imports and exports knowledge-base backup archives
+- Runs knowledge-base health checks for files, parsing, and indexes
+- Lets each knowledge base define answer rules in `AI_CONFIG.md`
 - Connects to Ollama local models
 - Connects to OpenAI-compatible network APIs
 - Saves network API keys locally with Electron `safeStorage`
@@ -55,6 +58,9 @@ This is an early-stage desktop app. The current version already includes:
 - File deletion, re-parsing, and re-indexing
 - Opening the local knowledge-base folder
 - Knowledge-base backup import/export
+- Knowledge-base health checks
+- Per-knowledge-base answer rules
+- Auto-maintained index and operation log
 - macOS packaging configuration
 
 ## Screens
@@ -149,12 +155,33 @@ This directory may contain:
 - Imported source files
 - Parsed text files
 - Text chunks and embedding vectors
+- `AI_CONFIG.md` answer rules
+- `index.md` knowledge-base summary
+- `log.md` operation log
 - Encrypted model settings
 - Runtime logs
 
 Do not commit this data.
 
 Knowledge bases can be exported from the app as `.localmind.zip` backup archives and imported into another LocalMind environment.
+
+## Knowledge Folder Structure
+
+Each knowledge base maintains:
+
+```text
+raw/          Imported source files
+notes/        Human or AI-assisted Markdown notes
+assets/       Images and attachments
+texts/        Parsed plain text
+chunks/       Retrieval chunks
+embeddings/   Local vector indexes
+AI_CONFIG.md  Answer rules for this knowledge base
+index.md      Knowledge-base summary
+log.md        Operation log
+```
+
+The right-panel health check inspects missing files, failed parsing, missing indexes, likely duplicate files, and orphaned generated index files.
 
 ## Privacy Notes
 

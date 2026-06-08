@@ -13,6 +13,8 @@ import type {
   KnowledgeChunk,
   KnowledgeEmbedding,
   KnowledgeFile,
+  KnowledgeHealthCheck,
+  KnowledgeHealthReport,
   ModelProvider,
   ModelSettings,
   NetworkModelConfig,
@@ -24,6 +26,7 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? 'http://127.0.0.1:11434';
 const APP_DATA_DIR = path.join(app.getPath('appData'), 'LocalMind');
 const KNOWLEDGE_ARCHIVE_FORMAT = 'localmind-knowledge-base';
 const KNOWLEDGE_ARCHIVE_VERSION = 1;
+const KNOWLEDGE_BASE_DIRECTORIES = ['raw', 'notes', 'assets', 'texts', 'chunks', 'embeddings'];
 
 app.setName('LocalMind');
 app.setPath('userData', APP_DATA_DIR);
@@ -217,7 +220,7 @@ function findKnowledgeFile(knowledgeBase: KnowledgeBase, fileId: string) {
 function getUniqueStoredPath(folderPath: string, fileName: string, index: number) {
   const parsed = path.parse(fileName);
   const suffix = index === 0 ? '' : `-${index + 1}`;
-  return path.join(folderPath, 'files', `${parsed.name}${suffix}${parsed.ext}`);
+  return path.join(folderPath, 'raw', `${parsed.name}${suffix}${parsed.ext}`);
 }
 
 function getParsedTextPath(folderPath: string, fileId: string) {
@@ -268,6 +271,203 @@ async function rewriteJsonArray<T extends { knowledgeBaseId?: string }>(filePath
   } catch {
     await fs.rm(filePath, { force: true }).catch(() => {});
   }
+}
+
+async function exists(filePath: string) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getKnowledgeBaseIndexPath(knowledgeBase: KnowledgeBase) {
+  return path.join(knowledgeBase.folderPath, 'index.md');
+}
+
+function getKnowledgeBaseLogPath(knowledgeBase: KnowledgeBase) {
+  return path.join(knowledgeBase.folderPath, 'log.md');
+}
+
+function getKnowledgeBaseRulesPath(knowledgeBase: KnowledgeBase) {
+  return path.join(knowledgeBase.folderPath, 'AI_CONFIG.md');
+}
+
+function getDefaultKnowledgeRules(knowledgeBaseName: string) {
+  return `# ${knowledgeBaseName} 知识库规则
+
+回答规则：
+- 优先使用本知识库中检索到的片段回答。
+- 如果资料不足，请明确说明“知识库中没有找到足够信息”。
+- 尽量使用中文，表达清晰、简洁。
+- 涉及事实、数据、结论时，优先引用来源片段编号。
+
+整理规则：
+- raw/ 保存导入的原始资料。
+- notes/ 可保存人工整理或 AI 辅助整理后的 Markdown 笔记。
+- assets/ 可保存图片、附件等辅助素材。
+- index.md 是知识库目录摘要。
+- log.md 记录重要操作。
+`;
+}
+
+async function appendKnowledgeLog(knowledgeBase: KnowledgeBase, message: string) {
+  const timestamp = new Date().toISOString();
+  await fs.appendFile(getKnowledgeBaseLogPath(knowledgeBase), `- [${timestamp}] ${message}\n`, 'utf8');
+}
+
+async function writeKnowledgeBaseIndex(knowledgeBase: KnowledgeBase) {
+  const parsedCount = knowledgeBase.files.filter((file) => file.status === 'parsed').length;
+  const indexedCount = knowledgeBase.files.filter((file) => file.vectorCount).length;
+  const failedCount = knowledgeBase.files.filter((file) => file.status === 'failed').length;
+  const fileLines = knowledgeBase.files.length
+    ? knowledgeBase.files
+        .map(
+          (file) =>
+            `- ${file.name} · ${file.status} · ${file.chunkCount ?? 0} 个片段 · ${file.vectorCount ?? 0} 个向量`,
+        )
+        .join('\n')
+    : '- 暂无文件';
+
+  const content = `# ${knowledgeBase.name}
+
+这是 LocalMind 自动维护的知识库索引。
+
+## 概览
+
+- 文件数量：${knowledgeBase.files.length}
+- 已解析文件：${parsedCount}
+- 已索引文件：${indexedCount}
+- 解析失败文件：${failedCount}
+- 更新时间：${new Date().toLocaleString('zh-CN')}
+
+## 文件
+
+${fileLines}
+`;
+
+  await fs.writeFile(getKnowledgeBaseIndexPath(knowledgeBase), content, 'utf8');
+}
+
+async function ensureKnowledgeBaseScaffold(knowledgeBase: KnowledgeBase) {
+  for (const directory of KNOWLEDGE_BASE_DIRECTORIES) {
+    await fs.mkdir(path.join(knowledgeBase.folderPath, directory), { recursive: true });
+  }
+
+  const rulesPath = getKnowledgeBaseRulesPath(knowledgeBase);
+  const logPath = getKnowledgeBaseLogPath(knowledgeBase);
+
+  if (!(await exists(rulesPath))) {
+    await fs.writeFile(rulesPath, getDefaultKnowledgeRules(knowledgeBase.name), 'utf8');
+  }
+
+  if (!(await exists(logPath))) {
+    await fs.writeFile(logPath, `# ${knowledgeBase.name} 操作日志\n\n`, 'utf8');
+  }
+
+  await writeKnowledgeBaseIndex(knowledgeBase);
+}
+
+async function readKnowledgeBaseRules(knowledgeBase: KnowledgeBase) {
+  try {
+    return (await fs.readFile(getKnowledgeBaseRulesPath(knowledgeBase), 'utf8')).trim();
+  } catch {
+    return '';
+  }
+}
+
+async function listJsonFiles(directoryPath: string) {
+  try {
+    return (await fs.readdir(directoryPath)).filter((fileName) => fileName.endsWith('.json'));
+  } catch {
+    return [];
+  }
+}
+
+async function checkKnowledgeBaseHealth(knowledgeBase: KnowledgeBase): Promise<KnowledgeHealthReport> {
+  await ensureKnowledgeBaseScaffold(knowledgeBase);
+
+  const checks: KnowledgeHealthCheck[] = [];
+  const addCheck = (status: KnowledgeHealthCheck['status'], title: string, detail: string) => {
+    checks.push({ status, title, detail });
+  };
+
+  for (const directory of KNOWLEDGE_BASE_DIRECTORIES) {
+    const directoryExists = await exists(path.join(knowledgeBase.folderPath, directory));
+    addCheck(directoryExists ? 'ok' : 'error', `${directory}/ 文件夹`, directoryExists ? '结构正常。' : '缺少这个文件夹。');
+  }
+
+  for (const fileName of ['AI_CONFIG.md', 'index.md', 'log.md']) {
+    const fileExists = await exists(path.join(knowledgeBase.folderPath, fileName));
+    addCheck(fileExists ? 'ok' : 'warning', fileName, fileExists ? '文件存在。' : '缺少维护文件，建议重建。');
+  }
+
+  const duplicateGroups = new Map<string, KnowledgeFile[]>();
+
+  for (const file of knowledgeBase.files) {
+    const key = `${file.name}:${file.size}`;
+    duplicateGroups.set(key, [...(duplicateGroups.get(key) ?? []), file]);
+
+    const storedExists = await exists(file.storedPath);
+    addCheck(storedExists ? 'ok' : 'error', `原始文件：${file.name}`, storedExists ? '文件存在。' : '文件记录存在，但本地原始文件丢失。');
+
+    if (file.status === 'failed') {
+      addCheck('warning', `解析失败：${file.name}`, file.error || '这个文件需要重新解析。');
+    }
+
+    if (file.status === 'parsed') {
+      const parsedExists = Boolean(file.parsedPath && (await exists(file.parsedPath)));
+      const chunksExist = Boolean(file.chunksPath && (await exists(file.chunksPath)));
+      addCheck(parsedExists ? 'ok' : 'warning', `解析文本：${file.name}`, parsedExists ? '解析文本存在。' : '缺少解析文本，建议重新解析。');
+      addCheck(chunksExist ? 'ok' : 'warning', `文本片段：${file.name}`, chunksExist ? '文本片段存在。' : '缺少文本片段，建议重新解析。');
+    }
+
+    if (file.status === 'parsed' && !file.vectorCount) {
+      addCheck('warning', `未生成索引：${file.name}`, '这个文件已解析，但还没有向量索引。');
+    }
+
+    if (file.vectorCount) {
+      const embeddingsExist = Boolean(file.embeddingsPath && (await exists(file.embeddingsPath)));
+      addCheck(embeddingsExist ? 'ok' : 'warning', `向量索引：${file.name}`, embeddingsExist ? '向量索引存在。' : '索引记录存在，但向量文件丢失。');
+    }
+  }
+
+  const duplicateCount = [...duplicateGroups.values()].filter((group) => group.length > 1).length;
+  addCheck(
+    duplicateCount ? 'warning' : 'ok',
+    '重复文件检查',
+    duplicateCount ? `发现 ${duplicateCount} 组疑似重复文件。` : '没有发现同名同大小的重复文件。',
+  );
+
+  const knownFileIds = new Set(knowledgeBase.files.map((file) => file.id));
+  const generatedJsonFiles = [
+    ...(await listJsonFiles(path.join(knowledgeBase.folderPath, 'chunks'))),
+    ...(await listJsonFiles(path.join(knowledgeBase.folderPath, 'embeddings'))),
+  ];
+  const orphanCount = generatedJsonFiles.filter((fileName) => !knownFileIds.has(path.basename(fileName, '.json'))).length;
+  addCheck(
+    orphanCount ? 'warning' : 'ok',
+    '孤立索引文件',
+    orphanCount ? `发现 ${orphanCount} 个没有对应文件记录的索引文件。` : '没有发现孤立索引文件。',
+  );
+
+  const errorCount = checks.filter((check) => check.status === 'error').length;
+  const warningCount = checks.filter((check) => check.status === 'warning').length;
+  const score = Math.max(0, 100 - errorCount * 18 - warningCount * 6);
+
+  return {
+    knowledgeBaseId: knowledgeBase.id,
+    checkedAt: new Date().toISOString(),
+    score,
+    summary:
+      errorCount > 0
+        ? `发现 ${errorCount} 个严重问题、${warningCount} 个提醒。`
+        : warningCount > 0
+          ? `整体可用，但有 ${warningCount} 个地方建议处理。`
+          : '知识库结构健康，可以放心使用。',
+    checks,
+  };
 }
 
 function createArchiveManifest(knowledgeBase: KnowledgeBase): KnowledgeBaseArchiveManifest {
@@ -462,9 +662,7 @@ async function parseKnowledgeFile(knowledgeBase: KnowledgeBase, file: KnowledgeF
   delete file.vectorCount;
 
   try {
-    await fs.mkdir(path.join(knowledgeBase.folderPath, 'texts'), { recursive: true });
-    await fs.mkdir(path.join(knowledgeBase.folderPath, 'chunks'), { recursive: true });
-    await fs.mkdir(path.join(knowledgeBase.folderPath, 'embeddings'), { recursive: true });
+    await ensureKnowledgeBaseScaffold(knowledgeBase);
     const text = await parseDocument(file.storedPath);
     const parsedPath = getParsedTextPath(knowledgeBase.folderPath, file.id);
     const chunksPath = getChunksPath(knowledgeBase.folderPath, file.id);
@@ -618,7 +816,7 @@ async function searchKnowledgeBaseChunks(knowledgeBase: KnowledgeBase, query: st
   return results.sort((a, b) => b.score - a.score).slice(0, 8);
 }
 
-function buildKnowledgePrompt(question: string, citations: SearchResult[]) {
+function buildKnowledgePrompt(question: string, citations: SearchResult[], knowledgeRules: string) {
   const context = citations
     .map(
       (citation, index) =>
@@ -626,7 +824,7 @@ function buildKnowledgePrompt(question: string, citations: SearchResult[]) {
     )
     .join('\n\n---\n\n');
 
-  return `你是 LocalMind 的知识库问答助手。请只根据下面提供的知识库片段回答用户问题。\n\n要求：\n- 如果片段中没有足够信息，请明确说“知识库中没有找到足够信息”。\n- 回答要清晰、具体、尽量使用中文。\n- 引用信息时，在句子后标注来源编号，例如 [1]、[2]。\n\n用户问题：\n${question}\n\n知识库片段：\n${context}`;
+  return `你是 LocalMind 的知识库问答助手。请只根据下面提供的知识库片段回答用户问题。\n\n默认要求：\n- 如果片段中没有足够信息，请明确说“知识库中没有找到足够信息”。\n- 回答要清晰、具体、尽量使用中文。\n- 引用信息时，在句子后标注来源编号，例如 [1]、[2]。\n\n知识库自定义规则：\n${knowledgeRules || '暂无自定义规则。'}\n\n用户问题：\n${question}\n\n知识库片段：\n${context}`;
 }
 
 ipcMain.handle('ollama:status', async (): Promise<OllamaStatus> => {
@@ -697,6 +895,7 @@ ipcMain.handle('settings:save-model', async (_event, settings: ModelSettings): P
 
 ipcMain.handle('kb:list', async (): Promise<KnowledgeBase[]> => {
   const store = await ensureStore();
+  await Promise.all(store.knowledgeBases.map((knowledgeBase) => ensureKnowledgeBaseScaffold(knowledgeBase)));
   return store.knowledgeBases;
 });
 
@@ -712,11 +911,6 @@ ipcMain.handle('kb:create', async (_event, name: string): Promise<KnowledgeBase>
   const folderName = `${sanitizeFolderName(cleanName)}-${id.slice(0, 8)}`;
   const folderPath = path.join(getKnowledgeBaseRoot(), folderName);
 
-  await fs.mkdir(path.join(folderPath, 'files'), { recursive: true });
-  await fs.mkdir(path.join(folderPath, 'texts'), { recursive: true });
-  await fs.mkdir(path.join(folderPath, 'chunks'), { recursive: true });
-  await fs.mkdir(path.join(folderPath, 'embeddings'), { recursive: true });
-
   const knowledgeBase: KnowledgeBase = {
     id,
     name: cleanName,
@@ -725,6 +919,8 @@ ipcMain.handle('kb:create', async (_event, name: string): Promise<KnowledgeBase>
     files: [],
   };
 
+  await ensureKnowledgeBaseScaffold(knowledgeBase);
+  await appendKnowledgeLog(knowledgeBase, '创建知识库');
   store.knowledgeBases.unshift(knowledgeBase);
   await saveStore(store);
   return knowledgeBase;
@@ -755,10 +951,7 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
     return knowledgeBase;
   }
 
-  await fs.mkdir(path.join(knowledgeBase.folderPath, 'files'), { recursive: true });
-  await fs.mkdir(path.join(knowledgeBase.folderPath, 'texts'), { recursive: true });
-  await fs.mkdir(path.join(knowledgeBase.folderPath, 'chunks'), { recursive: true });
-  await fs.mkdir(path.join(knowledgeBase.folderPath, 'embeddings'), { recursive: true });
+  await ensureKnowledgeBaseScaffold(knowledgeBase);
 
   for (const originalPath of result.filePaths) {
     const stats = await fs.stat(originalPath);
@@ -790,8 +983,10 @@ ipcMain.handle('kb:import-files', async (_event, knowledgeBaseId: string): Promi
 
     knowledgeBase.files.unshift(file);
     await parseKnowledgeFile(knowledgeBase, file);
+    await appendKnowledgeLog(knowledgeBase, `导入文件：${file.name}`);
   }
 
+  await writeKnowledgeBaseIndex(knowledgeBase);
   await saveStore(store);
   return knowledgeBase;
 });
@@ -904,6 +1099,8 @@ ipcMain.handle('kb:import-archive', async (): Promise<KnowledgeBase | null> => {
       files,
     };
 
+    await ensureKnowledgeBaseScaffold(knowledgeBase);
+    await appendKnowledgeLog(knowledgeBase, `从备份包导入：${path.basename(result.filePaths[0])}`);
     store.knowledgeBases.unshift(knowledgeBase);
     await saveStore(store);
     return knowledgeBase;
@@ -930,6 +1127,8 @@ ipcMain.handle('kb:generate-embeddings', async (_event, knowledgeBaseId: string,
     await generateFileEmbeddings(knowledgeBase, file, model.trim());
   }
 
+  await appendKnowledgeLog(knowledgeBase, `生成知识库索引：${model.trim()}`);
+  await writeKnowledgeBaseIndex(knowledgeBase);
   await saveStore(store);
   return knowledgeBase;
 });
@@ -940,6 +1139,8 @@ ipcMain.handle('kb:reparse-file', async (_event, knowledgeBaseId: string, fileId
   const file = findKnowledgeFile(knowledgeBase, fileId);
 
   await parseKnowledgeFile(knowledgeBase, file);
+  await appendKnowledgeLog(knowledgeBase, `重新解析文件：${file.name}`);
+  await writeKnowledgeBaseIndex(knowledgeBase);
   await saveStore(store);
   return knowledgeBase;
 });
@@ -958,6 +1159,8 @@ ipcMain.handle('kb:reindex-file', async (_event, knowledgeBaseId: string, fileId
   }
 
   await generateFileEmbeddings(knowledgeBase, file, model.trim());
+  await appendKnowledgeLog(knowledgeBase, `重新索引文件：${file.name}`);
+  await writeKnowledgeBaseIndex(knowledgeBase);
   await saveStore(store);
   return knowledgeBase;
 });
@@ -973,6 +1176,8 @@ ipcMain.handle('kb:delete-file', async (_event, knowledgeBaseId: string, fileId:
   }
 
   knowledgeBase.files = knowledgeBase.files.filter((item) => item.id !== fileId);
+  await appendKnowledgeLog(knowledgeBase, `删除文件：${file.name}`);
+  await writeKnowledgeBaseIndex(knowledgeBase);
   await saveStore(store);
   return knowledgeBase;
 });
@@ -987,6 +1192,16 @@ ipcMain.handle('kb:open-folder', async (_event, knowledgeBaseId: string): Promis
   }
 
   return true;
+});
+
+ipcMain.handle('kb:health', async (_event, knowledgeBaseId: string): Promise<KnowledgeHealthReport> => {
+  const store = await ensureStore();
+  const knowledgeBase = findKnowledgeBase(store, knowledgeBaseId);
+  const report = await checkKnowledgeBaseHealth(knowledgeBase);
+
+  await appendKnowledgeLog(knowledgeBase, `体检知识库：${report.score} 分`);
+  await saveStore(store);
+  return report;
 });
 
 ipcMain.handle('kb:search', async (_event, knowledgeBaseId: string, query: string, model: string): Promise<SearchResult[]> => {
@@ -1005,13 +1220,14 @@ ipcMain.handle('kb:ask', async (_event, request: KnowledgeAnswerRequest): Promis
     const knowledgeBase = findKnowledgeBase(store, request.knowledgeBaseId);
 
     const citations = await searchKnowledgeBaseChunks(knowledgeBase, request.question, request.embeddingModel);
+    const knowledgeRules = await readKnowledgeBaseRules(knowledgeBase);
     const answer = await sendChatRequest(
       {
         ...request,
         messages: [
           {
             role: 'user',
-            content: buildKnowledgePrompt(request.question, citations),
+            content: buildKnowledgePrompt(request.question, citations, knowledgeRules),
           },
         ],
       },
